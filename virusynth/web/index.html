@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0e1a">
+<title>ViruSynth — jam colaborativa</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body data-role="none">
+
+<!-- ===== Selector de rol ===== -->
+<div id="role-gate" class="role-gate">
+  <canvas id="gate-canvas" class="gate-canvas" aria-hidden="true"></canvas>
+  <div class="gate-content">
+    <p class="brand-eyebrow">Realtime Hackathon · jam en vivo</p>
+    <h1 class="brand">Viru<span class="brand-accent">Synth</span></h1>
+    <p class="gate-lede">Un instrumento, tres músicos: quien lo toca, la sala entera y una IA directora.</p>
+    <div class="role-cards">
+      <button class="role-card role-card--audience" data-pick="audience">
+        <span class="role-dot" aria-hidden="true"></span>
+        <span class="role-name">Audiencia</span>
+        <span class="role-desc">Vota la escala, el tempo y los efectos desde tu teléfono.</span>
+      </button>
+      <button class="role-card role-card--artist" data-pick="artist">
+        <span class="role-dot" aria-hidden="true"></span>
+        <span class="role-name">Artista</span>
+        <span class="role-desc">Propone patrones de notas que entran al secuenciador.</span>
+      </button>
+      <button class="role-card role-card--stage" data-pick="stage">
+        <span class="role-dot" aria-hidden="true"></span>
+        <span class="role-name">Escenario</span>
+        <span class="role-desc">Visualización a pantalla completa para proyectar.</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== App ===== -->
+<div id="app" class="app" hidden>
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="brand-mini">Viru<span class="brand-accent">Synth</span></span>
+      <span id="conn-badge" class="conn conn--off" role="status">conectando…</span>
+    </div>
+    <div class="topbar-readout" aria-live="polite">
+      <span class="readout"><span id="ro-scale" class="mono">—</span><small>escala</small></span>
+      <span class="readout"><span id="ro-bpm" class="mono">—</span><small>bpm</small></span>
+    </div>
+    <div id="presence" class="presence" title="conectados">
+      <span class="pill pill--stage"><b id="p-perf">0</b> escenario</span>
+      <span class="pill pill--artist"><b id="p-art">0</b> artistas</span>
+      <span class="pill pill--audience"><b id="p-aud">0</b> audiencia</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- Visualizador (protagonista en escenario, mini en otros roles) -->
+    <section id="stage-panel" class="stage-panel">
+      <canvas id="viz" class="viz" aria-label="visualización musical en vivo"></canvas>
+      <div id="stage-caption" class="stage-caption" aria-live="polite" hidden>
+        <span class="cap-chip" id="cap-source">IA</span>
+        <p id="cap-text"></p>
+      </div>
+    </section>
+
+    <!-- Panel de audiencia -->
+    <section id="audience-panel" class="panel-col" hidden>
+      <div class="glass">
+        <h2 class="panel-title"><span class="tick tick--audience"></span>Escala <small>tu voto pinta la barra</small></h2>
+        <div id="scale-grid" class="scale-grid"></div>
+      </div>
+      <div class="glass">
+        <h2 class="panel-title"><span class="tick tick--audience"></span>Tempo</h2>
+        <div class="bpm-row">
+          <span class="mono bpm-big" id="bpm-vote-label">112</span>
+          <input id="bpm-slider" class="fader" type="range" min="60" max="180" step="1" value="112"
+                 aria-label="tu voto de tempo en BPM">
+        </div>
+        <p class="hint">La sala promedia <b class="mono" id="bpm-avg">—</b> · el director ajusta el rumbo.</p>
+      </div>
+      <div class="glass">
+        <h2 class="panel-title"><span class="tick tick--audience"></span>Efectos <small>se aplican al instante</small></h2>
+        <div class="fx-row"><label for="fx-reverb">reverb</label>
+          <input id="fx-reverb" class="fader" type="range" min="0" max="1" step="0.01" value="0.35">
+          <span class="mono fx-val" id="fx-reverb-val">0.35</span></div>
+        <div class="fx-row"><label for="fx-delay">delay</label>
+          <input id="fx-delay" class="fader" type="range" min="0" max="1" step="0.01" value="0.25">
+          <span class="mono fx-val" id="fx-delay-val">0.25</span></div>
+        <div class="fx-row"><label for="fx-distortion">distorsión</label>
+          <input id="fx-distortion" class="fader" type="range" min="0" max="1" step="0.01" value="0.05">
+          <span class="mono fx-val" id="fx-distortion-val">0.05</span></div>
+      </div>
+    </section>
+
+    <!-- Panel de artista -->
+    <section id="artist-panel" class="panel-col" hidden>
+      <div class="glass">
+        <h2 class="panel-title"><span class="tick tick--artist"></span>Pad <small>las notas fuera de escala se atenúan — la IA las resuelve</small></h2>
+        <div id="note-pad" class="note-pad"></div>
+      </div>
+      <div class="glass">
+        <h2 class="panel-title"><span class="tick tick--artist"></span>Tu patrón <small>8 pasos · toca el pad para llenarlo</small></h2>
+        <div id="pattern-lane" class="pattern-lane"></div>
+        <div class="pattern-actions">
+          <button id="pattern-clear" class="btn btn--ghost">Borrar</button>
+          <button id="pattern-send" class="btn btn--artist" disabled>Enviar patrón</button>
+        </div>
+        <p class="hint" id="pattern-status">El patrón entra al secuenciador y toda la sala lo oye.</p>
+      </div>
+    </section>
+
+    <!-- Feed del director IA -->
+    <aside id="ai-panel" class="ai-panel glass" hidden>
+      <h2 class="panel-title"><span class="tick tick--ai"></span>Director IA <small id="ai-sub">escuchando la sala…</small></h2>
+      <ol id="ai-feed" class="ai-feed" aria-live="polite"></ol>
+    </aside>
+  </main>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

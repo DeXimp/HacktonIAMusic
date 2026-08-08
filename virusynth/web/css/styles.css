@@ -1,0 +1,397 @@
+/* ViruSynth — sistema visual
+   Trío semántico: cian = audiencia · magenta = artistas · ámbar = IA.
+   Fondo de escenario índigo-negro; vidrio silencioso; el orbe es el show. */
+
+:root {
+  --void: #0a0e1a;
+  --void-2: #101627;
+  --ink: #e9ecff;
+  --ink-dim: #8b93b8;
+  --line: rgba(148, 163, 255, 0.14);
+  --pane: rgba(148, 163, 255, 0.055);
+  --pane-strong: rgba(148, 163, 255, 0.1);
+  --cian: #37e6d4;
+  --magenta: #ff4fa3;
+  --ambar: #ffb454;
+  --violeta: #8a7dff;
+  --radius: 16px;
+  --mono: ui-monospace, "Cascadia Code", Consolas, "SF Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+
+body {
+  font-family: var(--sans);
+  color: var(--ink);
+  background:
+    radial-gradient(1100px 700px at 82% -10%, rgba(138, 125, 255, 0.16), transparent 60%),
+    radial-gradient(900px 600px at -10% 110%, rgba(55, 230, 212, 0.10), transparent 55%),
+    var(--void);
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible, a:focus-visible {
+  outline: 2px solid var(--cian);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* ============ Portada / selector de rol ============ */
+.role-gate {
+  position: fixed; inset: 0; z-index: 40;
+  display: grid; place-items: center;
+  padding: 24px;
+  overflow: hidden;
+}
+.gate-canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.5; }
+.gate-content { position: relative; text-align: center; max-width: 880px; }
+
+.brand-eyebrow {
+  font-family: var(--mono);
+  font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 14px;
+}
+.brand {
+  font-size: clamp(52px, 11vw, 108px);
+  font-weight: 800; letter-spacing: -0.03em; line-height: 0.95;
+}
+.brand-accent {
+  background: linear-gradient(100deg, var(--cian), var(--violeta) 55%, var(--magenta));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.gate-lede { color: var(--ink-dim); margin: 18px auto 34px; max-width: 46ch; font-size: 17px; }
+
+.role-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.role-card {
+  --glow: var(--cian);
+  position: relative;
+  text-align: left;
+  display: grid; gap: 8px; align-content: start;
+  padding: 20px 18px 22px;
+  background: var(--pane);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: transform 0.25s ease, border-color 0.25s ease, background 0.25s ease;
+}
+.role-card:hover, .role-card:focus-visible {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--glow) 55%, transparent);
+  background: var(--pane-strong);
+}
+.role-card--artist { --glow: var(--magenta); }
+.role-card--stage { --glow: var(--ambar); }
+.role-dot {
+  width: 11px; height: 11px; border-radius: 50%;
+  background: var(--glow);
+  box-shadow: 0 0 14px var(--glow);
+}
+.role-name { font-size: 20px; font-weight: 700; }
+.role-desc { color: var(--ink-dim); font-size: 14px; line-height: 1.45; }
+
+/* ============ Barra superior ============ */
+.app { min-height: 100dvh; display: flex; flex-direction: column; }
+.topbar {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(10, 14, 26, 0.72);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  position: sticky; top: 0; z-index: 20;
+}
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.brand-mini { font-weight: 800; font-size: 18px; letter-spacing: -0.02em; }
+
+.conn {
+  font-family: var(--mono); font-size: 11px;
+  padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+}
+.conn--on { color: var(--cian); border-color: color-mix(in srgb, var(--cian) 45%, transparent); }
+.conn--off { color: var(--ambar); animation: blink 1.4s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: 0.45; } }
+
+.topbar-readout { display: flex; gap: 18px; margin-left: auto; }
+.readout { display: grid; text-align: right; line-height: 1.1; }
+.readout .mono { font-size: 18px; font-weight: 600; }
+.readout small { color: var(--ink-dim); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; }
+
+.presence { display: flex; gap: 8px; }
+.pill {
+  font-family: var(--mono); font-size: 11px;
+  padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--ink-dim);
+}
+.pill b { color: var(--ink); font-weight: 600; }
+.pill--audience b { color: var(--cian); }
+.pill--artist b { color: var(--magenta); }
+.pill--stage b { color: var(--ambar); }
+
+/* ============ Layout principal ============ */
+.layout {
+  flex: 1;
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  grid-template-areas: "main ai";
+  align-items: start;
+  max-width: 1280px; width: 100%; margin: 0 auto;
+}
+.stage-panel { grid-area: main; position: relative; }
+.panel-col { grid-area: main; display: grid; gap: 16px; align-content: start; }
+.ai-panel { grid-area: ai; }
+
+/* Rol escenario: el orbe manda */
+body[data-role="stage"] .layout { grid-template-columns: 1fr; grid-template-areas: "main"; max-width: none; padding: 0; }
+body[data-role="stage"] .stage-panel { height: calc(100dvh - 58px); }
+body[data-role="stage"] .viz { border-radius: 0; border: 0; height: 100%; }
+
+/* Roles audiencia/artista: orbe en miniatura sobre los paneles */
+body[data-role="audience"] .stage-panel,
+body[data-role="artist"] .stage-panel { grid-area: main; height: 130px; }
+body[data-role="audience"] .layout,
+body[data-role="artist"] .layout {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  grid-template-areas: "viz ai" "panel ai";
+  grid-template-rows: 130px auto;
+}
+body[data-role="audience"] .stage-panel, body[data-role="artist"] .stage-panel { grid-area: viz; }
+body[data-role="audience"] .panel-col, body[data-role="artist"] .panel-col { grid-area: panel; }
+
+.viz {
+  width: 100%; height: 100%;
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: radial-gradient(600px 340px at 50% 42%, rgba(138, 125, 255, 0.08), transparent 70%), var(--void-2);
+}
+
+.stage-caption {
+  position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 12px;
+  max-width: min(860px, 92%);
+  padding: 12px 18px;
+  background: rgba(10, 14, 26, 0.78);
+  border: 1px solid color-mix(in srgb, var(--ambar) 35%, transparent);
+  border-radius: 14px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.stage-caption p { font-size: 17px; line-height: 1.4; }
+.cap-chip {
+  flex: none;
+  font-family: var(--mono); font-size: 11px;
+  color: var(--void);
+  background: var(--ambar);
+  padding: 3px 9px; border-radius: 999px; font-weight: 700;
+}
+
+/* ============ Paneles de vidrio ============ */
+.glass {
+  background: var(--pane);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.panel-title {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 14px; font-weight: 700;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  margin-bottom: 14px;
+}
+.panel-title small {
+  font-weight: 400; text-transform: none; letter-spacing: 0;
+  color: var(--ink-dim); font-size: 12px;
+}
+.tick { width: 8px; height: 8px; border-radius: 2px; align-self: center; }
+.tick--audience { background: var(--cian); box-shadow: 0 0 10px var(--cian); }
+.tick--artist { background: var(--magenta); box-shadow: 0 0 10px var(--magenta); }
+.tick--ai { background: var(--ambar); box-shadow: 0 0 10px var(--ambar); }
+
+/* ============ Audiencia ============ */
+.scale-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.scale-card {
+  position: relative; overflow: hidden;
+  display: grid; gap: 6px;
+  padding: 12px;
+  text-align: left;
+  background: rgba(10, 14, 26, 0.5);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  transition: border-color 0.2s ease, transform 0.15s ease;
+}
+.scale-card:active { transform: scale(0.97); }
+.scale-card .sc-name { font-family: var(--mono); font-size: 15px; font-weight: 600; }
+.scale-card .sc-mood { color: var(--ink-dim); font-size: 12px; }
+.scale-card .sc-bar {
+  height: 4px; border-radius: 2px;
+  background: rgba(148, 163, 255, 0.12);
+  overflow: hidden;
+}
+.scale-card .sc-fill {
+  display: block; height: 100%; width: 0%;
+  background: var(--cian);
+  transition: width 0.5s ease;
+}
+.scale-card[data-mine="1"] { border-color: color-mix(in srgb, var(--cian) 65%, transparent); }
+.scale-card[data-mine="1"]::after {
+  content: "tu voto";
+  position: absolute; top: 8px; right: 10px;
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.08em;
+  color: var(--cian);
+}
+.scale-card[data-live="1"] .sc-name::after { content: " ●"; color: var(--violeta); }
+
+.bpm-row { display: flex; align-items: center; gap: 16px; }
+.bpm-big { font-size: 34px; font-weight: 700; min-width: 2.4ch; }
+.hint { color: var(--ink-dim); font-size: 12.5px; margin-top: 10px; }
+
+.fx-row { display: grid; grid-template-columns: 86px 1fr 48px; align-items: center; gap: 12px; margin-bottom: 12px; }
+.fx-row label { color: var(--ink-dim); font-size: 13px; }
+.fx-val { text-align: right; font-size: 13px; color: var(--cian); }
+
+.fader {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 30px; background: transparent;
+}
+.fader::-webkit-slider-runnable-track {
+  height: 5px; border-radius: 3px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--cian) 60%, transparent), rgba(148, 163, 255, 0.15));
+}
+.fader::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px; height: 22px; margin-top: -8.5px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 2px solid var(--cian);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--cian) 60%, transparent);
+}
+.fader::-moz-range-track {
+  height: 5px; border-radius: 3px;
+  background: rgba(148, 163, 255, 0.2);
+}
+.fader::-moz-range-thumb {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--ink); border: 2px solid var(--cian);
+}
+
+/* ============ Artista ============ */
+.note-pad {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 8px;
+}
+.pad {
+  aspect-ratio: 1 / 1.15;
+  display: grid; place-items: center; align-content: center; gap: 2px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(10, 14, 26, 0.55);
+  font-family: var(--mono); font-size: 13px;
+  transition: transform 0.08s ease, background 0.2s ease, border-color 0.2s ease;
+}
+.pad small { font-size: 9px; color: var(--ink-dim); }
+.pad[data-inscale="1"] {
+  border-color: color-mix(in srgb, var(--magenta) 40%, transparent);
+  background: color-mix(in srgb, var(--magenta) 9%, rgba(10, 14, 26, 0.55));
+}
+.pad:active, .pad.pad--hit { transform: scale(0.92); background: color-mix(in srgb, var(--magenta) 30%, var(--void)); }
+.pad.pad--playing { border-color: var(--violeta); box-shadow: 0 0 12px color-mix(in srgb, var(--violeta) 55%, transparent); }
+
+.pattern-lane { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; margin-bottom: 14px; }
+.step {
+  aspect-ratio: 1;
+  display: grid; place-items: center;
+  border-radius: 10px;
+  border: 1px dashed var(--line);
+  color: var(--ink-dim);
+  font-family: var(--mono); font-size: 12px;
+  background: transparent;
+}
+.step--filled {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--magenta) 55%, transparent);
+  color: var(--ink);
+  background: color-mix(in srgb, var(--magenta) 14%, transparent);
+}
+
+.pattern-actions { display: flex; gap: 10px; }
+.btn {
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--pane-strong);
+  font-weight: 600;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn--artist {
+  border-color: color-mix(in srgb, var(--magenta) 60%, transparent);
+  background: linear-gradient(120deg, color-mix(in srgb, var(--magenta) 30%, var(--void)), color-mix(in srgb, var(--violeta) 25%, var(--void)));
+}
+.btn--artist:not(:disabled):hover { box-shadow: 0 0 18px color-mix(in srgb, var(--magenta) 40%, transparent); transform: translateY(-1px); }
+.btn--ghost { background: transparent; color: var(--ink-dim); }
+
+/* ============ Feed IA ============ */
+.ai-panel { max-height: calc(100dvh - 110px); overflow: auto; position: sticky; top: 74px; }
+.ai-feed { list-style: none; display: grid; gap: 10px; }
+.ai-card {
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--ambar) 22%, transparent);
+  background: color-mix(in srgb, var(--ambar) 5%, rgba(10, 14, 26, 0.5));
+  animation: card-in 0.45s cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+@keyframes card-in { from { opacity: 0; transform: translateY(10px); } }
+.ai-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+.ai-action {
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  color: var(--ambar);
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+.ai-value { font-family: var(--mono); font-size: 11px; color: var(--ink); }
+.ai-src {
+  margin-left: auto;
+  font-family: var(--mono); font-size: 10px;
+  padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--ink-dim);
+}
+.ai-src--claude { color: var(--ambar); border-color: color-mix(in srgb, var(--ambar) 45%, transparent); }
+.ai-reason { font-size: 13.5px; line-height: 1.5; color: var(--ink); }
+.ai-empty { color: var(--ink-dim); font-size: 13px; padding: 8px 2px; }
+
+/* ============ Responsive ============ */
+@media (max-width: 900px) {
+  .layout,
+  body[data-role="audience"] .layout,
+  body[data-role="artist"] .layout {
+    grid-template-columns: 1fr;
+    grid-template-areas: "viz" "panel" "ai";
+    grid-template-rows: 110px auto auto;
+  }
+  .ai-panel { position: static; max-height: none; }
+  .topbar-readout { margin-left: 0; }
+  .role-cards { grid-template-columns: 1fr; }
+  .note-pad { grid-template-columns: repeat(4, 1fr); }
+  .presence { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001s !important; transition-duration: 0.001s !important; }
+}

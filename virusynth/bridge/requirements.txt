@@ -1,0 +1,8 @@
+# Núcleo (el bridge arranca aunque falte cualquiera de estas — ver CLAUDE.md §3)
+python-osc>=1.8.3
+pyserial>=3.5
+websockets>=12.0
+python-dotenv>=1.0.1
+
+# IA Director (opcional: sin esto el director usa reglas locales)
+anthropic>=0.40.0
