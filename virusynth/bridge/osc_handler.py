@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import socket
-from typing import Any
+from typing import Any, Callable, Optional
 
 from . import config, osc_mini
 
@@ -28,6 +28,12 @@ class PdLink:
     def __init__(self, state) -> None:
         self.state = state
         self._transport = None
+        # hook opcional: JamController lo engancha para avisarle a la
+        # audiencia web (canal jam:note_triggered) cada vez que suena una
+        # nota — el motor de audio local nunca sabe ni le importa que esto
+        # exista (CLAUDE.md §2: Pd sigue siendo la única fuente de sonido
+        # "real"; esto es solo un eco de control para el navegador).
+        self.on_trigger: Optional[Callable[[int, int], None]] = None
         if _HAS_PYTHONOSC:
             self._client = SimpleUDPClient(config.PD_HOST, config.PD_SEND_PORT)
             self._sock = None
@@ -52,6 +58,8 @@ class PdLink:
 
     def trigger_note(self, note: int, velocity: int) -> None:
         self.send("/pd/trigger/note", int(note), int(velocity))
+        if self.on_trigger is not None:
+            self.on_trigger(int(note), int(velocity))
 
     def sync_full(self) -> None:
         """Reenvía el estado completo (al arrancar y tras reconexiones de Pd)."""

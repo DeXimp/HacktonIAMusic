@@ -14,17 +14,16 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
-import threading
 import time
 from typing import Any
 
 from . import config, music_engine
 from .ai_director import AIDirector
+from .hardware_link import HardwareLink
 from .mapping import SensorMapper
 from .osc_handler import PdLink
 from .portal_client import create_portal, NullPortal
 from .sequencer import Sequencer
-from .serial_reader import mock_sensor_task, start_serial_thread
 from .state import GlobalState
 
 log = logging.getLogger("BRIDGE")
@@ -40,13 +39,14 @@ class JamController:
         self.args = args
         self.state = GlobalState()
         self.pd = PdLink(self.state)
+        self.pd.on_trigger = self._on_note_triggered
         self.portal = NullPortal() if args.no_portal else create_portal()
         self.portal.set_handler(self.on_portal_message)
         self.mapper = SensorMapper(self.state, self.pd)
         self.sequencer = Sequencer(self.state, self.pd)
         self.director = AIDirector(self.state, self.apply_ai_decision)
         self.sensor_queue: asyncio.Queue = asyncio.Queue(maxsize=64)
-        self._stop_serial = threading.Event()
+        self.hardware = HardwareLink(self.sensor_queue)
 
     # ------------------------------------------------------------------ portal
     async def on_portal_message(self, channel: str, data: dict[str, Any],
@@ -90,6 +90,15 @@ class JamController:
         self.state.suggestions.append(payload)
         await self.portal.publish("jam:artist_suggestions", payload)
         log.info("Patrón de %s: %s -> %s", artist_id, notes, resolved)
+
+    # ------------------------------------------------------------- audiencia
+    def _on_note_triggered(self, note: int, velocity: int) -> None:
+        """Eco de control hacia la audiencia web (canal jam:note_triggered)
+        cada vez que PdLink dispara una nota — el audio real sigue siendo
+        100% de Pd; esto solo deja que el mini-sintetizador del navegador
+        (web/js/audio-engine.js) toque la misma nota casi en vivo."""
+        asyncio.create_task(self.portal.publish(
+            "jam:note_triggered", {"note": note, "velocity": velocity}))
 
     # ---------------------------------------------------------------- decisión
     async def apply_ai_decision(self, decision: dict[str, Any]) -> None:
@@ -176,21 +185,17 @@ class JamController:
             await self.portal.start()
         if not self.args.no_ai:
             tasks.append(asyncio.create_task(self.director.run(), name="ia"))
-        if self.args.mock_sensors:
-            log.info("Sensores MOCK activos (performer sintético)")
-            tasks.append(asyncio.create_task(
-                mock_sensor_task(self.sensor_queue), name="mock"))
-        elif not self.args.no_serial:
-            start_serial_thread(asyncio.get_running_loop(), self.sensor_queue,
-                                self.args.serial_port, config.SERIAL_BAUD,
-                                self._stop_serial)
-        log.info("ViruSynth Bridge listo | escala %s | %d BPM | OSC->%s:%d",
+        self.hardware.start(asyncio.get_running_loop(), port=self.args.serial_port,
+                            baud=config.SERIAL_BAUD, force_mock=self.args.mock_sensors,
+                            disable=self.args.no_serial)
+        log.info("ViruSynth Bridge listo | placa %s (ADC_MAX=%d) | escala %s | %d BPM | OSC->%s:%d",
+                 config.HARDWARE_BOARD, config.ADC_MAX,
                  self.state.jam.scale, self.state.jam.bpm,
                  config.PD_HOST, config.PD_SEND_PORT)
         try:
             await asyncio.gather(*tasks)
         finally:
-            self._stop_serial.set()
+            self.hardware.stop()
             await self.portal.stop()
             self.pd.stop()
 

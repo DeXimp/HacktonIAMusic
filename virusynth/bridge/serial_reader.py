@@ -1,7 +1,8 @@
-"""Entrada de sensores: hilo pyserial (ESP32) o generador mock (--mock-sensors).
+"""Entrada de sensores: hilo pyserial (Arduino UNO/ESP32) o generador mock
+(--mock-sensors).
 
 El hilo NUNCA toca el estado: solo encola tramas crudas hacia el event loop.
-Trama esperada (CSV, 8 campos): ax,ay,az,gx,gy,gz,fsr,pot
+Trama esperada (CSV, 8 o 10 campos): ax,ay,az,gx,gy,gz,fsr,pot[,btn1,btn2]
 """
 from __future__ import annotations
 
@@ -11,35 +12,57 @@ import math
 import random
 import threading
 import time
+from typing import Callable, Optional
 
 from . import config
 
 log = logging.getLogger("SERIAL")
 
-SensorFrame = tuple[float, float, float, float, float, float, float, float]
+# 10 campos: ax,ay,az,gx,gy,gz,fsr,pot,btn1,btn2 (Arduino UNO). Placas sin
+# botones (p.ej. ESP32 legado) mandan solo los primeros 8 — el parser los
+# rellena con btn1=btn2=0. Esta flexibilidad es la abstracción de hardware:
+# cualquier placa que hable este CSV es intercambiable (CLAUDE.md §2).
+SensorFrame = tuple[float, float, float, float, float, float, float, float, float, float]
+
+_CORE_FIELDS = 8    # ax,ay,az,gx,gy,gz,fsr,pot
+_FULL_FIELDS = 10   # + btn1,btn2
 
 
 def parse_line(line: str) -> SensorFrame | None:
     parts = line.strip().split(",")
-    if len(parts) != config.SENSOR_FIELDS:
+    if len(parts) not in (_CORE_FIELDS, _FULL_FIELDS):
         return None
     try:
-        vals = tuple(float(p) for p in parts)
+        vals = [float(p) for p in parts]
     except ValueError:
         return None
-    return vals  # type: ignore[return-value]
+    if len(vals) == _CORE_FIELDS:
+        vals += [0.0, 0.0]
+    return tuple(vals)  # type: ignore[return-value]
 
 
 def start_serial_thread(loop: asyncio.AbstractEventLoop,
                         queue: asyncio.Queue,
                         port: str,
                         baud: int,
-                        stop_event: threading.Event) -> threading.Thread | None:
-    """Lanza el hilo lector. Devuelve None si pyserial no está disponible."""
+                        stop_event: threading.Event,
+                        on_status_change: Optional[Callable[[bool], None]] = None
+                        ) -> threading.Thread | None:
+    """Lanza el hilo lector. Devuelve None si pyserial no está disponible.
+
+    on_status_change(connected: bool) se invoca (vía call_soon_threadsafe)
+    cada vez que cambia el estado de la conexión física — lo usa
+    HardwareLink para levantar/bajar el performer sintético automáticamente.
+    """
+    def _notify(connected: bool) -> None:
+        if on_status_change is not None:
+            loop.call_soon_threadsafe(on_status_change, connected)
+
     try:
         import serial  # type: ignore
     except ImportError:
         log.warning("pyserial no instalado: usa --mock-sensors")
+        _notify(False)
         return None
 
     def _run() -> None:
@@ -49,19 +72,22 @@ def start_serial_thread(loop: asyncio.AbstractEventLoop,
             if ser is None:
                 try:
                     ser = serial.Serial(port, baud, timeout=1)
-                    log.info("ESP32 conectado en %s @ %d", port, baud)
+                    log.info("Hardware conectado en %s @ %d", port, baud)
                     warned = False
+                    _notify(True)
                 except serial.SerialException:
                     if not warned:
-                        log.warning("Sin ESP32 en %s; reintentando cada %.0f s",
+                        log.warning("Sin hardware en %s; reintentando cada %.0f s",
                                     port, config.SERIAL_RETRY_S)
                         warned = True
+                    _notify(False)
                     stop_event.wait(config.SERIAL_RETRY_S)
                     continue
             try:
                 raw = ser.readline()
             except serial.SerialException:
-                log.warning("ESP32 desconectado; reintentando…")
+                log.warning("Hardware desconectado; reintentando…")
+                _notify(False)
                 try:
                     ser.close()
                 except Exception:
@@ -112,5 +138,5 @@ async def mock_sensor_task(queue: asyncio.Queue,
         pot = 3300 + 500 * math.sin(t * 0.05)
         _offer(queue, (round(ax, 3), round(ay, 3), round(az, 3),
                        round(gx, 1), round(gy, 1), round(gz, 1),
-                       round(fsr), round(pot)))
+                       round(fsr), round(pot), 0, 0))   # performer sintético: sin botones
         await asyncio.sleep(period)

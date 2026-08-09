@@ -5,6 +5,7 @@ import { Visualizer } from "./visualizer.js";
 import { AIFeed } from "./ai-feed.js";
 import { AudienceUI } from "./audience-ui.js";
 import { ArtistUI } from "./artist-ui.js";
+import { AudioEngine } from "./audio-engine.js";
 import { prettyScale } from "./music.js";
 
 const gate = document.getElementById("role-gate");
@@ -64,6 +65,27 @@ function boot(role) {
   }
   document.getElementById("ai-panel").hidden = false;
 
+  /* ---- audio para la audiencia (Web Audio API, ver audio-engine.js) ---- */
+  const audio = new AudioEngine();
+  const listenBtn = document.getElementById("listen-toggle");
+  if (!audio.supported) {
+    listenBtn.disabled = true;
+    listenBtn.textContent = "🔇 audio no disponible";
+  } else {
+    listenBtn.addEventListener("click", async () => {
+      if (audio.enabled) {
+        await audio.disable();
+        listenBtn.setAttribute("aria-pressed", "false");
+        listenBtn.textContent = "🔈 Escuchar en vivo";
+      } else {
+        listenBtn.textContent = "conectando audio…";
+        await audio.enable();
+        listenBtn.setAttribute("aria-pressed", "true");
+        listenBtn.textContent = "🔊 Escuchando";
+      }
+    });
+  }
+
   /* ---- badge de conexión ---- */
   const badge = document.getElementById("conn-badge");
   portal.onStatus((s) => {
@@ -79,12 +101,14 @@ function boot(role) {
   /* ---- channels jam:* ---- */
   portal.on("jam:state", (s) => {
     viz.setState(s);
+    audio.setState(s);
     document.getElementById("ro-scale").textContent = prettyScale(s.scale);
     document.getElementById("ro-bpm").textContent = s.bpm ?? "—";
     audience?.renderState(s);
     artist?.renderState(s);
   });
   portal.on("jam:votes", (v) => audience?.renderVotes(v));
+  portal.on("jam:note_triggered", (n) => audio.noteOn(n.note, n.velocity));
   portal.on("jam:ai_director", (d) => feed.push(d));
   portal.on("jam:artist_suggestions", (p) => artist?.renderSuggestion(p));
   portal.on("jam:presence", (p) => {
