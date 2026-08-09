@@ -46,11 +46,20 @@ mensaje OSC, nunca de Pd.
 | `/pd/state/amplitude` | f | 10 Hz | envolvente del master: `(env~ dB − 40)/60`, 0–1 |
 | `/pd/state/last_note` | i | por nota | eco de la última nota disparada |
 
-## ESP32 → Bridge (Serial USB · no es OSC)
+## Hardware → Bridge (Serial USB · no es OSC)
 
-CSV a 50 Hz, 115200 baud: `ax,ay,az,gx,gy,gz,fsr,pot\n`
-(aceleración en g ×2 dec · giroscopio en °/s ×1 dec · crudos ADC 0–4095).
-El bridge descarta en silencio cualquier línea que no tenga 8 campos numéricos.
+CSV a 50 Hz, 115200 baud: `ax,ay,az,gx,gy,gz,fsr,pot[,btn1,btn2]\n`
+(aceleración en g ×2 dec · giroscopio en °/s ×1 dec · fsr/pot crudos ADC,
+rango según la placa activa — `bridge/config.py:ADC_MAX`: 0–1023 en Arduino
+UNO, 10 bits, hardware principal; 0–4095 en ESP32, 12 bits, pausado). El
+bridge descarta en silencio cualquier línea que no tenga 8 o 10 campos
+numéricos; si son 8 (placa sin botones), rellena `btn1=btn2=0`. Cualquier
+placa que hable este CSV es intercambiable sin tocar el bridge — cambiar de
+hardware es cambiar `HARDWARE_BOARD` (env var).
+
+Arduino UNO agrega `btn1` (D2), `btn2` (D3): 0/1, `INPUT_PULLUP` (1 =
+presionado). Se parsean en `bridge/mapping.py` pero no tienen acción
+musical atada todavía (punto de extensión, ver `docs/hardware-arduino-uno.md`).
 
 ## Mapeo sensores → música (bridge/mapping.py)
 
@@ -59,8 +68,9 @@ El bridge descarta en silencio cualquier línea que no tenga 8 campos numéricos
 | accel X (inclinación lateral) | cutoff 300–4000 Hz, curva log | `/pd/set/cutoff` (máx 20 Hz, umbral 2 %) |
 | accel Y (inclinación frontal) | índice de nota en la escala (2 octavas) | interno: elige la nota del próximo trigger |
 | gyro (magnitud) | delay: base votada ± 0.25 según energía del gesto | `/pd/set/fx/delay` |
-| FSR (flanco de subida, umbral 600, histéresis 0.7×) | trigger de nota, velocity 30–127 | `/pd/trigger/note` |
+| FSR (flanco de subida, umbral `config.FSR_TRIGGER_THRESHOLD` ≈14.65% del fondo de escala, histéresis 0.7×) | trigger de nota, velocity 30–127 | `/pd/trigger/note` |
 | potenciómetro | volumen master 0–1 | `/pd/set/volume` |
+| botones D2/D3 (Arduino UNO) | — | sin acción todavía (inertes a propósito) |
 
 ## (Opcional) ESP32 → Bridge por WiFi
 

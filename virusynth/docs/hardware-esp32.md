@@ -1,5 +1,12 @@
 # Hardware — ESP32 DevKit v1
 
+> ⚠️ **Pausado temporalmente** por fallas físicas/térmicas recientes. El
+> hardware principal de ViruSynth es ahora **Arduino UNO** — ver
+> [`docs/hardware-arduino-uno.md`](hardware-arduino-uno.md). Esta guía se
+> conserva vigente para cuando el ESP32 vuelva a servicio: el protocolo CSV
+> es compatible con ambas placas (`bridge/serial_reader.py` acepta tramas de
+> 8 o 10 campos — ver `HARDWARE_BOARD` en `bridge/config.py`).
+
 ## Pinout
 
 | Función | GPIO | Notas |
