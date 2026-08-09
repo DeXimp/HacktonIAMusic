@@ -1,7 +1,10 @@
 """Prueba Pd EN SOLITARIO (sin bridge): envía OSC musical directo a :9000.
 
 Útil para validar el patch main.pd con audio: arpegio en La menor pentatónica,
-barrido de cutoff y FX suaves. stdlib puro.
+barrido de cutoff y FX suaves, más un barrido lento de las direcciones
+"crudas" de sensor de la Etapa 2 (`/pd/sensor/pot|fsr|ax`,
+`/pd/trigger/button1`) para ejercitar esa rama sin depender solo de la GUI
+del patch. stdlib puro.
 
 Uso:  python scripts/mock-sensors.py
 """
@@ -33,6 +36,7 @@ def main() -> None:
     send("/pd/set/fx/delay", 0.25)
     send("/pd/set/fx/distortion", 0.05)
     t0, step = time.time(), 0
+    next_button1 = 3.0
     try:
         while True:
             t = time.time() - t0
@@ -41,6 +45,19 @@ def main() -> None:
             send("/pd/trigger/note", note, velocity)
             cutoff = 300.0 * (4000.0 / 300.0) ** ((math.sin(t * 0.25) + 1) / 2)
             send("/pd/set/cutoff", float(round(cutoff, 1)))
+
+            # Etapa 2 — sensores "crudos" simulados (contrato: pot/fsr 0-1,
+            # ax en el mismo rango ±g que el CSV real usaría).
+            pot = (math.sin(t * 0.05) + 1) / 2
+            fsr = max(0.0, math.sin(t * 0.9)) ** 3   # picos ocasionales > 0.3
+            ax = math.sin(t * 0.17)
+            send("/pd/sensor/pot", float(round(pot, 3)))
+            send("/pd/sensor/fsr", float(round(fsr, 3)))
+            send("/pd/sensor/ax", float(round(ax, 3)))
+            if t >= next_button1:
+                send("/pd/trigger/button1")
+                next_button1 = t + random.uniform(2.0, 4.0)
+
             step += 1
             time.sleep(60.0 / 112 / 2)   # corcheas a 112 BPM
     except KeyboardInterrupt:

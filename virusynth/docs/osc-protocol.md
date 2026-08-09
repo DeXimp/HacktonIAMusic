@@ -17,6 +17,27 @@ documenta AQUÍ antes de implementarse (CLAUDE.md §6).
 | `/pd/set/scale` | s | p.ej. `Am_pentatonic` | informativo (el bridge cuantiza) |
 | `/pd/set/bpm` | i | 60–180 | informativo (el secuenciador vive en el bridge) |
 | `/pd/set/root_note` | i | 36–96 | informativo |
+| `/pd/trigger/button1` | — (bang) | — | dispara la voz (gatillo manual, redundante al FSR) |
+
+### Sensores "crudos" (Etapa 2 — preview local / futuro pass-through de hardware)
+
+Rama nueva, en paralelo a la de arriba (no la reemplaza). `main.pd` ya la
+procesa hoy con datos simulados (`scripts/mock-sensors.py`); cuando el
+Arduino UNO físico esté conectado, el bridge podrá relayear sus lecturas por
+estas mismas direcciones sin que el patch cambie. Es acondicionamiento de
+señal simple (umbral, escalado) — la cuantización de escala y las
+decisiones armónicas reales siguen siendo exclusivas de `bridge/mapping.py`
+(CLAUDE.md §2).
+
+| Address | Tipos | Contrato | Efecto en Pd |
+|---|---|---|---|
+| `/pd/sensor/pot` | f | **normalizado 0–1** (misma convención que `/pd/set/volume`) | volumen master |
+| `/pd/sensor/fsr` | f | normalizado 0–1 | cruce de umbral (>0.3) con flanco → dispara nota |
+| `/pd/sensor/ax` | f | mismo rango ±g que el CSV | escalado lineal → cutoff 300–4000 Hz |
+
+La normalización de rango crudo del ADC (0–1023 en Arduino UNO, 0–4095 en
+ESP32 — ver `bridge/config.py:ADC_MAX`) es responsabilidad de quien envía el
+mensaje OSC, nunca de Pd.
 
 ## Pure Data → Bridge (telemetría · UDP `localhost:8000`)
 
