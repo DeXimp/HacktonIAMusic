@@ -70,13 +70,62 @@ un gesto del usuario antes de reproducir audio de todos modos).
 - **Patrones de artista**: se cuantizan a la escala vigente al llegar y entran
   directo al secuenciador; si hubo choques, la IA lo comenta en el feed.
 
-## Cómo hacer el swap al SDK real de Portal
+## Cómo viajan estos channels por Portal (useportal.co)
 
-1. Implementar `PortalSDKAdapter` en `bridge/portal_client.py` respetando la
-   interfaz `PortalBase` (`start`, `stop`, `publish`, `set_handler`, `presence`).
-2. Mapear los mensajes entrantes del SDK a `handler(channel, data, client)`
-   con `client = {"id", "role", "name"}`.
-3. En `web/js/portal-client.js`, sustituir el transporte WS por el cliente JS
-   del SDK manteniendo `connect/on/publish`.
-4. Definir `PORTAL_API_KEY` (y `PORTAL_ROOM`) en `.env` — `create_portal()`
-   elegirá el adaptador automáticamente.
+Portal está integrado: `PortalSDKAdapter` (`bridge/portal_client.py`) y
+`PortalRemote` (`web/js/portal-remote.js`) hablan su **wire protocol v1**
+directo — no se usa `@portalsdk/core`, que es npm + bundler y chocaría con la
+regla "sin build step, sin CDNs" (CLAUDE.md §3). Los docs de Portal describen
+el wire justamente para esto ("implementing a client in another language").
+
+**Los ocho channels `jam:*` de arriba no cambian.** Viajan como el campo `type`
+de mensajes **efímeros** dentro de un único canal Portal (`PORTAL_ROOM`,
+default `virusynth-jam`):
+
+```jsonc
+// ViruSynth -> Portal            // Portal -> ViruSynth
+{"t":"ephemeral","cl":"b7",       {"t":"ephemeral","userId":"anon_…",
+ "type":"jam:state",               "type":"jam:votes:cast",
+ "content":{…}}                    "content":{…}}
+```
+
+Efímeros y no persistentes a propósito: `jam:state` va a 10 Hz y
+`jam:note_triggered` dispara por nota. Un publish persistente les pondría `seq`,
+los guardaría para siempre y sumaría un round-trip HTTP por nota. Medido contra
+el servicio real: **18.6 msg/s, 0 errores, 0 pérdidas**; `jam:state` pesa 290 B
+de los 2048 que Portal permite por mensaje.
+
+`jam:presence` lo sigue publicando el bridge, que cuenta los roles leyendo la
+presencia del canal (cada cliente manda `meta={"role":…}` al conectarse). El
+propio bridge entra con `role: "bridge"` y no se cuenta como público.
+
+### Los dos transportes conviven
+
+`create_portal()` devuelve un `CompositePortal` que publica en **Portal y en el
+WS local a la vez**. El WS local no se va nunca: sirve la página web y es el
+fallback que exige CLAUDE.md §7. Si Portal se cae, la jam local sigue sin
+enterarse. En el navegador, `Portal` (`web/js/portal-client.js`) elige
+transporte al conectar: si `/portal-config.json` trae clave *y* Portal responde,
+usa Portal; si no, el WS local.
+
+### Dos detalles que NO están en docs.useportal.co
+
+Salieron de leer `@portalsdk/core@0.1.5` y están verificados contra el servicio:
+
+1. **Token anónimo** (los docs lo marcan como *"doc gap"*):
+   `POST https://api.useportal.co/v1/tokens/anonymous`, header
+   `x-portal-key: pk_…`, body `{}` → `{"token": "<jwt>"}`. Dura 1 h.
+2. **El WebSocket lleva `key`** además de `token`:
+   `wss://realtime.useportal.co/v1/channels/{room}?v=1&key=pk_…&token=<jwt>`.
+
+Además, `api.useportal.co` está detrás de Cloudflare: con el User-Agent por
+defecto de `urllib` devuelve 403 (error 1010) — hay que mandar uno de navegador.
+
+### Configuración
+
+`PORTAL_API_KEY` y `PORTAL_ROOM` en `.env` (nunca en `.env.example`, que sí se
+versiona). La clave `pk_` es **publicable** por diseño —los docs de Portal dicen
+"safe to ship in a browser bundle"—, y el bridge se la sirve al navegador en
+`/portal-config.json`. La clave secreta (`sk_`, solo para `portal deploy`) no la
+usa el proyecto. Con `PORTAL_API_KEY` vacío, todo sigue funcionando por el WS
+local.

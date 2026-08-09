@@ -1,0 +1,6 @@
+# Dependencias npm: solo se usaron para leer el SDK de Portal como referencia.
+# La web de ViruSynth es JS vanilla sin build step (CLAUDE.md §3), así que
+# nada de esto se envía al navegador ni hace falta para correr el proyecto.
+node_modules/
+package.json
+package-lock.json

@@ -1,16 +1,98 @@
-/* Cliente realtime de ViruSynth.
-   Hoy: WebSocket local del bridge — servido desde el MISMO origen que esta
-   página (bridge/portal_client.py sirve la web/ y el WebSocket en el mismo
-   puerto), así que un solo túnel (ngrok o similar) alcanza para que alguien
-   en otra red entre como audiencia/artista/escenario — ver
-   docs/remote-access.md. `wss://` se usa automáticamente cuando la página
-   se cargó por HTTPS (los navegadores bloquean `ws://` desde una página
-   https por mixed content), y el puerto se toma de `location.host` en vez
-   de estar fijo, porque detrás de un túnel el puerto público no es 8765.
-   Mañana: PUNTO DE SWAP al SDK de Portal — misma interfaz pública
-   (connect / on / publish), mismos channels `jam:*`. Ver docs/portal-channels.md. */
+/* Cliente realtime de ViruSynth. Hay DOS transportes con la misma interfaz y
+   los mismos channels `jam:*`; la clase `Portal` de abajo elige uno al
+   conectar, y el resto de la app (app.js, audience-ui.js, artist-ui.js) no se
+   entera de cuál quedó activo:
 
+   1. `PortalRemote` (portal-remote.js) — Portal (useportal.co). Cruza redes
+      sin túnel ni port-forwarding: la audiencia entra desde cualquier lado.
+      Se usa cuando el bridge reporta una clave en /portal-config.json.
+   2. `LocalPortal` (acá abajo) — WebSocket local del bridge, servido desde el
+      MISMO origen que esta página (bridge/portal_client.py sirve web/ y el WS
+      en el mismo puerto). `wss://` sale solo cuando la página se cargó por
+      HTTPS (los navegadores bloquean `ws://` desde https por mixed content) y
+      el puerto se toma de `location.host`, porque detrás de un túnel el
+      puerto público no es 8765. Ver docs/remote-access.md.
+
+   El local es el fallback y NO desaparece: si Portal no responde, la jam
+   sigue (CLAUDE.md §7 — la demo nunca depende de un servicio externo).
+   Ver docs/portal-channels.md. */
+
+import { PortalRemote } from "./portal-remote.js";
+
+/* El bridge dice si hay Portal configurado. La clave que devuelve es
+   PUBLICABLE por diseño (los docs de Portal: "safe to ship in a browser
+   bundle"); la secreta nunca sale del .env del bridge. */
+async function loadPortalConfig() {
+  try {
+    const res = await fetch("/portal-config.json", { cache: "no-store" });
+    if (!res.ok) return null;
+    const config = await res.json();
+    return config && config.apiKey ? config : null;
+  } catch {
+    return null;   // web servida sin el bridge (p. ej. hosting estático)
+  }
+}
+
+/* ¿Portal está realmente disponible, o solo configurado? Se prueba antes de
+   elegirlo: una clave revocada o sin internet no puede tumbar la demo. */
+async function portalReachable(config) {
+  try {
+    const res = await fetch(`${config.apiUrl}/v1/tokens/anonymous`, {
+      method: "POST",
+      headers: { "x-portal-key": config.apiKey, "content-type": "application/json" },
+      body: "{}",
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/* Despachador: misma interfaz pública que cualquiera de los dos transportes.
+   Guarda las suscripciones hechas antes de connect() y se las pasa al que
+   termine eligiendo. */
 export class Portal {
+  constructor(role, name = "") {
+    this.role = role;
+    this.name = name;
+    this.handlers = new Map();
+    this.statusCbs = new Set();
+    this.impl = null;
+  }
+
+  on(channel, cb) {
+    if (!this.handlers.has(channel)) this.handlers.set(channel, new Set());
+    this.handlers.get(channel).add(cb);
+    this.impl?.on(channel, cb);
+    return this;
+  }
+
+  onStatus(cb) {
+    this.statusCbs.add(cb);
+    this.impl?.onStatus(cb);
+    return this;
+  }
+
+  publish(channel, data) { this.impl?.publish(channel, data); }
+
+  async connect() {
+    const config = await loadPortalConfig();
+    if (config && await portalReachable(config)) {
+      this.impl = new PortalRemote(this.role, this.name, config);
+      console.info(`[portal] usando Portal (canal '${config.room}')`);
+    } else {
+      this.impl = new LocalPortal(this.role, this.name);
+      console.info("[portal] usando el WebSocket local del bridge");
+    }
+    for (const [channel, set] of this.handlers) {
+      for (const cb of set) this.impl.on(channel, cb);
+    }
+    for (const cb of this.statusCbs) this.impl.onStatus(cb);
+    this.impl.connect();
+  }
+}
+
+export class LocalPortal {
   constructor(role, name = "") {
     this.role = role;
     this.name = name;

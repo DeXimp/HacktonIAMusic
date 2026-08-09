@@ -94,10 +94,15 @@ aplican de forma asíncrona cuando llegan; nunca se espera por ellos.
 | Bridge ↔ Web (WS + estática) | WebSocket / HTTP | :**8765** (o el primer libre — `start-all.ps1` autodetecta si algo más en la máquina ya lo usa, p.ej. NI Web Server) | JSON `{type, channel, data}` (incl. `jam:note_triggered` para el mini-sintetizador de audiencia) por WS; `web/` servida por HTTP en el MISMO puerto (`LocalPortalServer._process_request`) — un solo puerto/link, tunneleable con `start-all.ps1 -Tunnel` para audiencia/escenario en otra red |
 | Bridge → LLM | HTTPS | — | Anthropic tool use (`propose_mutation`) |
 
+| Bridge ↔ Portal | WSS (wire protocol v1) | `realtime.useportal.co` | los mismos channels `jam:*`, como `type` de mensajes **efímeros** en un canal (`PORTAL_ROOM`). Activo solo con `PORTAL_API_KEY`; se suma al WS local, no lo reemplaza |
+
 Especificación completa: `docs/osc-protocol.md` y `docs/portal-channels.md`. Cualquier
 mensaje nuevo se documenta ahí ANTES de implementarse. Acceso cruzando redes (no solo
-LAN): `docs/remote-access.md` — y por qué el SDK real de "Portal" (el sponsor del
-hackathon) sigue siendo un punto de extensión sin implementar (`PortalSDKAdapter`).
+LAN): `docs/remote-access.md` — vía Portal (sin túnel) o vía ngrok.
+
+Portal se habla por su wire protocol directo, no con `@portalsdk/core`: ese paquete es
+npm + bundler y rompería "sin build step, sin CDNs" (§3). Cliente Python:
+`bridge/portal_client.py:PortalSDKAdapter`; cliente JS vanilla: `web/js/portal-remote.js`.
 
 ## 7. Errores y fallbacks para la demo en vivo
 
@@ -107,7 +112,7 @@ Cadena de degradación (cada eslabón se prueba antes de la demo):
 |---|---|---|
 | LLM lento/caído/sin key | Reglas locales de `music_engine.py` | timeout 5 s, `source: "reglas_locales"` visible en el feed |
 | Decisión IA inválida | Se descarta y se usa la regla local | `music_engine.validate_decision()` |
-| Portal sin SDK/credenciales | Servidor WS local `ws://localhost:8765` | mismos channels `jam:*` |
+| Portal caído, clave inválida o sin internet | Servidor WS local `ws://localhost:8765` | mismos channels `jam:*`. El WS local SIEMPRE corre (`CompositePortal` publica en los dos); el navegador prueba Portal al conectar y cae al local si no responde |
 | Hardware desconectado | Performer sintético automático (`hardware_link.py`) | el show sigue sin intervención: se activa solo al no detectar hardware y se desactiva solo al reconectar; `--mock-sensors` sigue disponible para forzarlo; reconexión cada 3 s |
 | Pd cerrado | `scripts/test-osc.py` (simulador que imprime) | se demuestra el flujo de control |
 | Sin internet | Todo lo anterior — el sistema es 100% local | — |
@@ -126,7 +131,7 @@ no se detiene jamás. Cooldown de cambio de escala: 20 s (coherencia musical).
 | `SERIAL_BAUD` | `115200` | baudios |
 | `WS_PORT` | `8765` | servidor realtime local |
 | `PD_SEND_PORT` / `PD_RECV_PORT` | `9000` / `8000` | OSC con Pd |
-| `PORTAL_API_KEY`, `PORTAL_ROOM` | (vacío → WS local) | SDK real de Portal cuando exista |
+| `PORTAL_API_KEY`, `PORTAL_ROOM` | (vacío → solo WS local) / `virusynth-jam` | Portal (useportal.co). Clave **publicable** (`pk_`): va en `.env`, nunca en `.env.example`, y el bridge se la sirve al navegador en `/portal-config.json` |
 
 ## 9. Setup y ejecución
 

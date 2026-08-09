@@ -1,30 +1,44 @@
 # Acceso remoto — audiencia/escenario en OTRA red
 
-## Primero, qué es "Portal" realmente acá
+## Hay dos caminos para llegar desde otra red
 
-"Portal" es el sponsor del hackathon (*Realtime Hackathon by Portal*) — la
-idea original del proyecto es que su SDK real fuera la capa de transporte
-que conecta gente en cualquier red, sin que ViruSynth tenga que resolver
-NAT/hosting por su cuenta. **Ese SDK nunca se integró**: `PortalSDKAdapter`
-en `bridge/portal_client.py` es un punto de extensión que hoy lanza
-`NotImplementedError` a propósito —
+1. **Portal** (`useportal.co`, el sponsor del hackathon) — *recomendado*: no
+   necesita túnel ni abrir puertos. Es la capa de transporte que conecta gente
+   en cualquier red sin que ViruSynth resuelva NAT por su cuenta.
+2. **Un túnel** (ngrok) al puerto del bridge — sigue funcionando y es lo que
+   describe el resto de este documento. Necesario igual si querés que la
+   *página* se sirva desde tu máquina.
 
-```python
-class PortalSDKAdapter(PortalBase):
-    """PUNTO DE INTEGRACIÓN con el SDK real de Portal.
-    Cuando el hackathon entregue SDK/credenciales: implementar start/publish...
-    """
+Los dos conviven: `create_portal()` devuelve un `CompositePortal` que publica
+en Portal **y** en el WebSocket local a la vez. El WS local nunca se apaga —
+sirve la web y es el fallback que exige CLAUDE.md §7.
+
+### Portal (sin túnel)
+
+Poné la clave publicable en `.env` (no en `.env.example`, que se versiona):
+
+```ini
+PORTAL_API_KEY=pk_...     # dashboard de Portal
+PORTAL_ROOM=virusynth-jam
 ```
 
-— porque nunca tuvimos credenciales/SDK reales para implementarlo. No es
-algo que se pueda simular de forma honesta sin acceso al servicio real. Si
-en algún momento el hackathon los entrega, ese archivo es exactamente donde
-va la integración — el resto del bridge no se entera del cambio (mismos
-channels `jam:*`, ver `docs/portal-channels.md`).
+y arrancá normal. En el log vas a ver:
 
-Mientras tanto, `create_portal()` usa `LocalPortalServer`: un WebSocket
-propio, siempre activo, que es el que de verdad mueve la jam hoy (CLAUDE.md
-§7 — "Portal sin SDK/credenciales → servidor WS local, mismos channels").
+```
+[PORTAL] Portal conectado: canal 'virusynth-jam' en wss://realtime.useportal.co
+```
+
+Desde ahí, cualquiera que abra la página —esté donde esté— entra a la misma
+jam: el navegador pide `/portal-config.json` al bridge y, si hay clave y Portal
+responde, usa Portal en vez del WS local (`web/js/portal-client.js`).
+
+Detalle que esto habilita: como el realtime ya no pasa por tu máquina, la
+carpeta `web/` puede vivir en cualquier hosting estático (GitHub Pages, por
+ejemplo) y la jam sigue funcionando. En ese caso no hay `/portal-config.json`,
+así que hay que hornear la config en el HTML o servirla desde ese hosting.
+
+Con `PORTAL_API_KEY` vacío, nada de esto se activa y todo sigue como antes.
+Implementación y protocolo: `docs/portal-channels.md`.
 
 ## Por qué antes esto solo andaba en la misma red (LAN)
 
