@@ -40,7 +40,7 @@ if (-not (Test-Path $Py)) {
 
 # --- Pure Data ---
 if (-not $NoPd) {
-    $PdExe = Join-Path $env:LOCALAPPDATA "Pd\bin\pd.exe"
+    $PdExe = "C:\Program Files\Pd\bin\pd.exe"
     if (Test-Path $PdExe) {
         Write-Host "[pd] Abriendo main.pd (activa DSP si no suena: Media > DSP On)" -ForegroundColor Green
         # Nota: si la ruta del proyecto tiene acentos y Pd no abre el patch,
