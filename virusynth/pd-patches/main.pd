@@ -176,7 +176,6 @@
 #X connect 84 0 85 0;
 #X connect 85 0 86 0;
 #X connect 86 0 74 0;
-#X text 1100 20 SINTESIS ENRIQUECIDA (3ra voz detune + ADSR real + chorus) -- Etapa 1;
 #X obj 1100 100 * 0.994;
 #X obj 1100 130 phasor~;
 #X obj 1100 170 *~ 0.2;
@@ -202,7 +201,6 @@
 #X obj 1400 370 s vs-env-on;
 #X obj 1400 400 del 400;
 #X obj 1400 430 s vs-env-off;
-#X text 1100 480 CHORUS (delay corto modulado -- vd~, 100% vanilla);
 #X obj 1100 520 delwrite~ vs-chorus 50;
 #X obj 1100 560 phasor~ 0.15;
 #X obj 1100 590 *~ 4;
@@ -212,7 +210,6 @@
 #X obj 1100 700 *~;
 #X obj 1100 740 +~;
 #X obj 1200 740 +~;
-#X text 30 780 ENTRADA OSC DE SENSORES CRUDOS (Etapa 2 -- preview local / futuro pass-through de hardware; NO hace cuantizacion de escala -- esa logica sigue solo en bridge/mapping.py);
 #X obj 30 810 route pot fsr ax;
 #X obj 30 850 s vs-vol;
 #X obj 170 850 clip -1 1;
@@ -231,7 +228,6 @@
 #X msg 380 810 0.85;
 #X obj 320 840 s vs-peak;
 #X obj 320 870 s vs-fire;
-#X text 30 1030 GUI DE PRUEBA LOCAL (sin bridge ni hardware) -- sliders y toggles hablan a los mismos buses vs-* que ya usa la rama OSC;
 #X obj 30 1060 hsl 128 15 36 96 0 1 vs-note-pitch empty nota -2 -8 0 10 -262144 -1 -1 60 1;
 #X obj 30 1090 hsl 128 15 0 1 0 1 vs-peak empty velocity -2 -8 0 10 -262144 -1 -1 0.8 1;
 #X obj 30 1120 hsl 128 15 300 4000 0 1 vs-cutoff empty cutoff -2 -8 0 10 -262144 -1 -1 1200 1;
