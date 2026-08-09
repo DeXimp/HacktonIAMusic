@@ -17,23 +17,25 @@ arquitectura) y [docs/architecture.md](docs/architecture.md).
 ```powershell
 cd virusynth
 powershell -ExecutionPolicy Bypass -File scripts\start-all.ps1        # todo mock
-powershell -ExecutionPolicy Bypass -File scripts\start-all.ps1 -SerialPort COM7   # con ESP32
+powershell -ExecutionPolicy Bypass -File scripts\start-all.ps1 -SerialPort COM7   # con Arduino UNO / ESP32
+powershell -ExecutionPolicy Bypass -File scripts\start-all.ps1 -Tunnel            # + audiencia/escenario en OTRA red
 ```
 
-Eso abre Pure Data (o el simulador), el bridge y la web en `http://localhost:8080`
-(si ese puerto ya está en uso por otra cosa en tu máquina —p.ej. National
-Instruments Web Server, común si tenés LabVIEW—, `start-all.ps1` detecta el
-conflicto solo y usa el siguiente puerto libre; lo imprime en la consola).
-La audiencia entra desde el móvil con la IP de la máquina: `http://<IP>:8080/?role=audience`
-(o el puerto que haya quedado impreso).
+Eso abre Pure Data (o el simulador), y el bridge — que también sirve la web
+en `http://localhost:8765` desde el mismo puerto (si ese puerto ya está en
+uso por otra cosa en tu máquina —p.ej. National Instruments Web Server,
+común si tenés LabVIEW—, `start-all.ps1` detecta el conflicto solo y usa el
+siguiente puerto libre; lo imprime en la consola).
+La audiencia entra desde el móvil con la IP de la máquina: `http://<IP>:8765/?role=audience`
+(o el puerto que haya quedado impreso). Para gente en otra red (no tu
+WiFi), usá `-Tunnel` — ver [docs/remote-access.md](docs/remote-access.md).
 
 Manual, pieza a pieza:
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\pip install -r bridge\requirements.txt
-.venv\Scripts\python -m bridge.main --mock-sensors     # el corazón
-python -m http.server 8080 -d web                       # la web
+.venv\Scripts\python -m bridge.main --mock-sensors     # el corazón — y la web, mismo puerto
 # Pure Data: abrir pd-patches\main.pd (DSP se activa solo)
 ```
 
@@ -57,8 +59,8 @@ la demo funciona igual.
 
 | Min | Momento | Acción |
 |---|---|---|
-| 0:00 | **El instrumento vive** | Performer inclina el ESP32 (timbre) y pulsa el FSR (acentos) sobre el arpegio base. Proyector en `/?role=stage`: el orbe respira con el audio real. |
-| 0:40 | **La sala entra** | QR a `http://<IP>:8080/?role=audience`. Los votos de FX se sienten al instante; los votos de escala/tempo se acumulan a la vista de todos. |
+| 0:00 | **El instrumento vive** | Performer inclina el Arduino UNO (timbre) y pulsa el FSR (acentos) sobre el arpegio base. Proyector en `/?role=stage`: el orbe respira con el audio real. |
+| 0:40 | **La sala entra** | QR a `http://<IP>:8765/?role=audience` (o el link de `-Tunnel` si hay gente conectándose desde otra red). Los votos de FX se sienten al instante; los votos de escala/tempo se acumulan a la vista de todos; quien quiera puede tocar "Escuchar en vivo" para oír el mini-sintetizador del navegador. |
 | 1:20 | **El director decide** | El feed ámbar publica: *"La sala pide más energía: subo el tempo a 152 BPM, paso a paso."* El orbe ondula en ámbar con cada decisión. |
 | 2:00 | **Un artista choca** | Alguien en `/?role=artist` envía un patrón con una nota fuera de escala → la IA la resuelve (p. ej. 59→60) y explica la resolución armónica en vivo. |
 | 2:40 | **La prueba de fuego** | Apagar el WiFi del router: el show sigue — audio local, WS en LAN, director con reglas locales. *"ViruSynth no depende de la nube: la aprovecha."* |

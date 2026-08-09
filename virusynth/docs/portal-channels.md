@@ -1,9 +1,13 @@
 # Channels realtime `jam:*` — Portal y fallback local
 
 La capa realtime transporta JSON por channels con namespace `jam:*`. Hoy los
-sirve el **servidor WS local del bridge** (`ws://<host-del-bridge>:8765`);
-cuando exista acceso al SDK de Portal, `PortalSDKAdapter` publica/consume los
-MISMOS channels y nada más cambia.
+sirve el **servidor WS local del bridge** (`ws://<host-del-bridge>:8765`),
+que además sirve `web/` por HTTP en ese mismo puerto — un solo puerto/link
+para todo, tunneleable con `start-all.ps1 -Tunnel` para gente en otra red
+(ver `docs/remote-access.md`). Cuando exista acceso al SDK real de "Portal"
+(el sponsor del hackathon; hoy sigue siendo un punto de extensión sin
+implementar, ver `docs/remote-access.md`), `PortalSDKAdapter` publica/consume
+los MISMOS channels y nada más cambia.
 
 ## Envelope del WS local
 

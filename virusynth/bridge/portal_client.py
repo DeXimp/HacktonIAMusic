@@ -2,8 +2,13 @@
 
 `create_portal()` decide el backend:
   1. PortalSDKAdapter  — cuando exista SDK/credenciales reales (PORTAL_API_KEY).
-  2. LocalPortalServer — servidor WebSocket local (ws://:8765). La demo NUNCA
-     depende de un servicio externo (CLAUDE.md §7).
+  2. LocalPortalServer — servidor WebSocket local (ws://:8765), que ADEMÁS
+     sirve la web estática (web/) desde el mismo puerto (ver
+     `_process_request`) — así un solo túnel (ngrok o similar) alcanza para
+     que alguien en OTRA red entre como audiencia/escenario y escuche el
+     mini-sintetizador de web/js/audio-engine.js en tiempo real. Ver
+     docs/remote-access.md. La demo NUNCA depende de un servicio externo
+     (CLAUDE.md §7).
   3. NullPortal        — si falta `websockets`; el bridge sigue vivo sin web.
 
 Protocolo JSON (mismos channels `jam:*` que usaría Portal):
@@ -16,7 +21,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import mimetypes
 import uuid
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 
 from . import config
@@ -25,6 +32,26 @@ log = logging.getLogger("PORTAL")
 
 IncomingHandler = Callable[[str, dict[str, Any], dict[str, Any]], Awaitable[None]]
 _ROLES = {"audience", "artist", "stage"}
+
+WEB_ROOT = (Path(__file__).resolve().parent.parent / "web").resolve()
+
+
+def _safe_static_path(request_path: str) -> Optional[Path]:
+    """Resuelve un path de request HTTP a un archivo dentro de web/, sin
+    permitir escapar del directorio (path traversal) — este servidor puede
+    quedar expuesto a internet entero vía un túnel, así que esto no es
+    opcional."""
+    clean = request_path.split("?", 1)[0].split("#", 1)[0]
+    if clean in ("", "/"):
+        clean = "/index.html"
+    try:
+        candidate = (WEB_ROOT / clean.lstrip("/")).resolve()
+        candidate.relative_to(WEB_ROOT)
+    except ValueError:
+        return None
+    if candidate.is_dir():
+        candidate = candidate / "index.html"
+    return candidate if candidate.is_file() else None
 
 
 class PortalBase:
@@ -61,14 +88,43 @@ class LocalPortalServer(PortalBase):
 
         self._server = await websockets.serve(
             self._on_connection, config.WS_HOST, config.WS_PORT,
+            process_request=self._process_request,
             ping_interval=20, ping_timeout=20)
-        log.info("Realtime local en ws://%s:%d (fallback de Portal)",
+        log.info("Realtime local + web en http(s)/ws(s)://%s:%d "
+                 "(fallback de Portal; un solo puerto para todo — ver docs/remote-access.md)",
                  config.WS_HOST, config.WS_PORT)
 
     async def stop(self) -> None:
         if self._server is not None:
             self._server.close()
             await self._server.wait_closed()
+
+    # ---- web estática (mismo puerto que el WebSocket) ----------------------
+    async def _process_request(self, connection: Any, request: Any) -> Any:
+        """Deja pasar el handshake de WebSocket sin tocarlo; cualquier otra
+        request HTTP (alguien abriendo la página en el navegador) la sirve
+        directo desde web/ — así un solo túnel expone tanto la app como el
+        realtime, sin necesitar un segundo `python -m http.server` ni un
+        segundo link para compartir."""
+        if request.headers.get("Upgrade", "").lower() == "websocket":
+            return None
+        from websockets.http11 import Response
+        from websockets.datastructures import Headers
+
+        path = _safe_static_path(request.path)
+        if path is None:
+            body = b"404 not found"
+            headers = Headers()
+            headers["Content-Type"] = "text/plain; charset=utf-8"
+            headers["Content-Length"] = str(len(body))
+            return Response(404, "Not Found", headers, body)
+        body = path.read_bytes()
+        content_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+        headers = Headers()
+        headers["Content-Type"] = content_type
+        headers["Content-Length"] = str(len(body))
+        headers["Cache-Control"] = "no-cache"
+        return Response(200, "OK", headers, body)
 
     # ---- conexiones --------------------------------------------------------
     async def _on_connection(self, ws) -> None:

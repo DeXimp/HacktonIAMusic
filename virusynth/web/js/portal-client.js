@@ -1,5 +1,12 @@
 /* Cliente realtime de ViruSynth.
-   Hoy: WebSocket local del bridge (ws://<host>:8765).
+   Hoy: WebSocket local del bridge — servido desde el MISMO origen que esta
+   página (bridge/portal_client.py sirve la web/ y el WebSocket en el mismo
+   puerto), así que un solo túnel (ngrok o similar) alcanza para que alguien
+   en otra red entre como audiencia/artista/escenario — ver
+   docs/remote-access.md. `wss://` se usa automáticamente cuando la página
+   se cargó por HTTPS (los navegadores bloquean `ws://` desde una página
+   https por mixed content), y el puerto se toma de `location.host` en vez
+   de estar fijo, porque detrás de un túnel el puerto público no es 8765.
    Mañana: PUNTO DE SWAP al SDK de Portal — misma interfaz pública
    (connect / on / publish), mismos channels `jam:*`. Ver docs/portal-channels.md. */
 
@@ -19,8 +26,12 @@ export class Portal {
   }
 
   get url() {
-    const host = location.hostname || "localhost";
-    return `ws://${host}:8765`;
+    const scheme = location.protocol === "https:" ? "wss:" : "ws:";
+    // location.host incluye el puerto si no es el default (80/443) -- al
+    // servir la web y el WS desde el mismo puerto (bridge/portal_client.py)
+    // esto ya apunta al lugar correcto tanto en LAN como detrás de un túnel.
+    const host = location.host || "localhost:8765";
+    return `${scheme}//${host}`;
   }
 
   connect() {

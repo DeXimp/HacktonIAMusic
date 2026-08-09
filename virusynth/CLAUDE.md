@@ -91,12 +91,13 @@ aplican de forma asíncrona cuando llegan; nunca se espera por ellos.
 | Hardware → Bridge | Serial USB 115200 | `SERIAL_PORT` (env) | CSV `ax,ay,az,gx,gy,gz,fsr,pot[,btn1,btn2]\n` @ 50 Hz — ADC 0–1023 (Arduino UNO) o 0–4095 (ESP32) según `HARDWARE_BOARD` |
 | Bridge → Pd | OSC/UDP | localhost:**9000** | `/pd/set/*`, `/pd/trigger/note`, `/pd/trigger/button1`, `/pd/sensor/*` |
 | Pd → Bridge | OSC/UDP | localhost:**8000** | `/pd/state/amplitude`, `/pd/state/last_note` |
-| Bridge ↔ Web | WebSocket | :**8765** | JSON `{type, channel, data}` (incl. `jam:note_triggered` para el mini-sintetizador de audiencia) |
-| Web estática | HTTP | :**8080** (o el primer libre — `start-all.ps1` autodetecta si algo más en la máquina ya lo usa, p.ej. NI Web Server) | `python -m http.server` |
+| Bridge ↔ Web (WS + estática) | WebSocket / HTTP | :**8765** (o el primer libre — `start-all.ps1` autodetecta si algo más en la máquina ya lo usa, p.ej. NI Web Server) | JSON `{type, channel, data}` (incl. `jam:note_triggered` para el mini-sintetizador de audiencia) por WS; `web/` servida por HTTP en el MISMO puerto (`LocalPortalServer._process_request`) — un solo puerto/link, tunneleable con `start-all.ps1 -Tunnel` para audiencia/escenario en otra red |
 | Bridge → LLM | HTTPS | — | Anthropic tool use (`propose_mutation`) |
 
 Especificación completa: `docs/osc-protocol.md` y `docs/portal-channels.md`. Cualquier
-mensaje nuevo se documenta ahí ANTES de implementarse.
+mensaje nuevo se documenta ahí ANTES de implementarse. Acceso cruzando redes (no solo
+LAN): `docs/remote-access.md` — y por qué el SDK real de "Portal" (el sponsor del
+hackathon) sigue siendo un punto de extensión sin implementar (`PortalSDKAdapter`).
 
 ## 7. Errores y fallbacks para la demo en vivo
 
@@ -135,13 +136,13 @@ cd virusynth
 python -m venv .venv
 .venv\Scripts\pip install -r bridge\requirements.txt
 
-# Todo-en-uno (Pd + bridge + web)
+# Todo-en-uno (Pd + bridge + web, ambos en el mismo puerto)
 powershell -ExecutionPolicy Bypass -File scripts\start-all.ps1
+powershell -ExecutionPolicy Bypass -File scripts\start-all.ps1 -Tunnel   # + audiencia/escenario en OTRA red (ver docs/remote-access.md)
 
 # Manual, pieza por pieza
-.venv\Scripts\python -m bridge.main --mock-sensors        # bridge (fuerza performer sintético)
+.venv\Scripts\python -m bridge.main --mock-sensors        # bridge + web en http://localhost:8765 (fuerza performer sintético)
 .venv\Scripts\python -m bridge.main --serial-port COM7    # bridge (con hardware; sin hardware, cae a mock solo)
-python -m http.server 8080 -d web                          # web en http://localhost:8080
 # Pure Data: abrir pd-patches\main.pd y activar DSP
 
 # Verificaciones

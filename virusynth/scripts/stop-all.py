@@ -6,9 +6,13 @@ ViruSynth — detiene todos los procesos lanzados por scripts\\start-all.ps1
 
 Busca y mata:
   - Pure Data (pd.exe)
-  - Bridge (python -m bridge.main)
+  - Bridge (python -m bridge.main) -- desde que bridge/portal_client.py sirve
+    también la web/ en el mismo puerto, matar esto ya apaga todo lo que
+    start-all.ps1 levanta (ver docs/remote-access.md)
   - Simulador OSC (scripts\\test-osc.py), si se usó en lugar de Pd
-  - Servidor web (python -m http.server <puerto>, el que haya elegido start-all.ps1)
+  - Servidor web viejo (python -m http.server), por si quedó uno de una
+    corrida con una versión anterior de start-all.ps1
+  - ngrok, si se usó start-all.ps1 -Tunnel
 """
 
 import argparse
@@ -74,17 +78,14 @@ MATCHERS = [
         lambda p: "python" in p["name"].lower() and "test-osc.py" in p["cmd"],
     ),
     (
-        "Servidor web (http.server)",
-        # start-all.ps1 elige el primer puerto libre a partir de 8080 (puede
-        # no ser 8080 si algo mas en la maquina ya lo esta usando), asi que
-        # no se puede matchear por numero de puerto -- se matchea por la
-        # carpeta que sirve en su lugar.
+        "Servidor web viejo (http.server) -- de una version anterior de start-all.ps1",
         lambda p: (
             "python" in p["name"].lower()
             and "http.server" in p["cmd"]
             and "web" in p["cmd"]
         ),
     ),
+    ("Tunel ngrok", lambda p: p["name"].lower() == "ngrok.exe"),
 ]
 
 
