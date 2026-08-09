@@ -32,7 +32,7 @@ class SensorMapper:
         self.selected_note = state.jam.root_note
 
     def process(self, frame: SensorFrame) -> None:
-        ax, ay, az, gx, gy, gz, fsr, pot = frame
+        ax, ay, az, gx, gy, gz, fsr, pot, _btn1, _btn2 = frame
         jam = self.state.jam
         now = time.monotonic()
 
@@ -45,13 +45,18 @@ class SensorMapper:
         # --- trigger por flanco del FSR -------------------------------------
         if fsr >= config.FSR_TRIGGER_THRESHOLD and not self._fsr_pressed:
             self._fsr_pressed = True
-            span = 4095 - config.FSR_TRIGGER_THRESHOLD
+            span = config.ADC_MAX - config.FSR_TRIGGER_THRESHOLD
             velocity = 30 + int((fsr - config.FSR_TRIGGER_THRESHOLD) / span * 97)
             self.pd.trigger_note(self.selected_note, min(127, velocity))
             jam.current_notes.append(self.selected_note)
             jam.last_trigger_ts = now
         elif fsr < config.FSR_TRIGGER_THRESHOLD * 0.7:   # histéresis
             self._fsr_pressed = False
+
+        # --- botones digitales (Arduino UNO D2/D3; 0,0 en placas sin
+        # botones) -- se parsean pero A PROPÓSITO no tienen acción musical
+        # atada todavía (decisión explícita del equipo): punto de extensión,
+        # ver docs/hardware-arduino-uno.md.
 
         # --- controles continuos, limitados a 20 Hz y con umbral de cambio --
         if now - self._last_cont_send < 0.05:
@@ -72,7 +77,7 @@ class SensorMapper:
             self._last_delay = delay
             self.pd.set_param("fx/delay", float(round(delay, 3)))
 
-        volume = max(0.0, min(1.0, pot / 4095.0))
+        volume = max(0.0, min(1.0, pot / config.ADC_MAX))
         if abs(volume - self._last_volume) > 0.015:
             self._last_volume = volume
             jam.volume = volume

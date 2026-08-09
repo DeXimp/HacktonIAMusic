@@ -135,9 +135,14 @@ class AIDirector:
                 log.warning("Decisión del LLM inválida; uso reglas locales")
             except asyncio.TimeoutError:
                 log.warning("LLM superó %.1fs; uso reglas locales", config.AI_TIMEOUT_S)
-            except Exception as exc:  # red, auth, rate limit… nunca tumbar el loop
-                log.warning("LLM falló (%s); uso reglas locales",
-                            type(exc).__name__)
+            except Exception as exc:  # red, auth, créditos, rate limit… nunca tumbar el loop
+                status = getattr(exc, "status_code", None)
+                if status in (401, 403):
+                    log.warning("LLM: API key inválida o sin permisos; uso reglas locales")
+                elif status == 429:
+                    log.warning("LLM: rate limit / posible falta de créditos; uso reglas locales")
+                else:
+                    log.warning("LLM falló (%s); uso reglas locales", type(exc).__name__)
         decision = music_engine.rule_based_suggestion(snapshot)
         return decision
 

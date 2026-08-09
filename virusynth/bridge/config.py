@@ -38,7 +38,7 @@ PORTAL_ROOM = os.getenv("PORTAL_ROOM", "virusynth-jam")
 SERIAL_PORT = os.getenv("SERIAL_PORT", "COM5")
 SERIAL_BAUD = _int("SERIAL_BAUD", 115200)
 SERIAL_RETRY_S = 3.0
-SENSOR_FIELDS = 8  # ax,ay,az,gx,gy,gz,fsr,pot
+SENSOR_FIELDS = 10  # ax,ay,az,gx,gy,gz,fsr,pot,btn1,btn2 (8 en placas sin botones)
 SENSOR_RATE_HZ = 50.0
 
 # --- IA Director ---
