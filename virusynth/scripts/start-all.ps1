@@ -40,8 +40,16 @@ if (-not (Test-Path $Py)) {
 
 # --- Pure Data ---
 if (-not $NoPd) {
-    $PdExe = "C:\Program Files\Pd\bin\pd.exe"
-    if (Test-Path $PdExe) {
+    # El instalador de Pd deja el ejecutable en distintos lugares según se
+    # instaló per-user o para toda la máquina -- se prueban ambos en vez de
+    # asumir uno solo (varía de una máquina del equipo a otra).
+    $PdCandidates = @(
+        (Join-Path $env:LOCALAPPDATA "Pd\bin\pd.exe"),
+        "C:\Program Files\Pd\bin\pd.exe",
+        "C:\Program Files (x86)\Pd\bin\pd.exe"
+    )
+    $PdExe = $PdCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($PdExe) {
         Write-Host "[pd] Abriendo main.pd (activa DSP si no suena: Media > DSP On)" -ForegroundColor Green
         # Nota: si la ruta del proyecto tiene acentos y Pd no abre el patch,
         # copia la carpeta virusynth a una ruta sin caracteres especiales.
