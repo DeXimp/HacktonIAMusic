@@ -17,6 +17,7 @@ flowchart TB
     subgraph L2["LOOP 2 · COLABORACIÓN + IA (1–5 s de tolerancia)"]
         PD -.->|/pd/state/* UDP :8000| BR[bridge core<br/>estado global]
         BR <-->|ws://:8765<br/>channels jam:*| WEB[Web App<br/>audiencia · artistas · escenario]
+        WEB -.->|jam:state + jam:note_triggered| WA[audio-engine.js<br/>mini-synth Web Audio, opt-in]
         BR -->|snapshot JSON| IA[ai_director<br/>Claude tool use<br/>timeout 5 s]
         IA -->|decisión validada| BR
         IA -.->|fallback| ME[music_engine<br/>reglas locales]

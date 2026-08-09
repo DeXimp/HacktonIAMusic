@@ -31,6 +31,21 @@ MISMOS channels y nada más cambia.
 | `jam:artist_suggestions` | cliente → bridge → rebroadcast | por envío | `{artist_id, suggestion:{type:"note_pattern", notes[], steps, duration, resolved_notes[], changes[{from,to}]}}` — el bridge añade `resolved_notes`/`changes` al rebroadcast |
 | `jam:ai_director` | bridge → todos | cada ~7 s | `{action, value, reasoning, harmonic_resolution, source:"claude"|"reglas_locales", timestamp}` |
 | `jam:presence` | bridge → todos | en cambios | `{performers, artists, audience}` |
+| `jam:note_triggered` | bridge → todos | por nota | `{note, velocity}` — eco de cada disparo real hacia Pd (`PdLink.trigger_note()`), lo consume `web/js/audio-engine.js` para tocar la misma nota en el mini-sintetizador del navegador |
+
+### Audio para la audiencia (`web/js/audio-engine.js`)
+
+El audio "real" sigue siendo 100% de Pure Data (CLAUDE.md §2) — no hay
+streaming de esos bytes. Cada navegador con el botón "Escuchar en vivo"
+activado corre su propio mini-sintetizador Web Audio (osciladores +
+filtro + envolvente + delay + reverb algorítmica), alimentado por lo que
+ya viaja por acá: `jam:state` (cutoff/volumen/FX, 10 Hz) para los
+parámetros continuos, y `jam:note_triggered` para el disparo de cada nota.
+No es un espejo sample-accurate del DSP de Pd, es una aproximación liviana
+—suficiente para que la sala remota sienta lo que está pasando sin agregar
+infraestructura de streaming de audio. Arranca apagado a propósito (evita
+duplicar el sonido de quien ya está en la sala, y los navegadores exigen
+un gesto del usuario antes de reproducir audio de todos modos).
 
 ### Acciones de `jam:ai_director`
 
