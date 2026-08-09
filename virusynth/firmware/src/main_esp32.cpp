@@ -1,6 +1,13 @@
 /*
  * ViruSynth — firmware ESP32 (Fase 4)
  *
+ * NOTA (consolidación Arduino UNO): este firmware queda PAUSADO temporalmente
+ * por fallas físicas/térmicas del ESP32 — se conserva funcionando para
+ * cuando vuelva a estar en servicio. El hardware principal ahora es
+ * firmware/src/main_uno.cpp. El protocolo CSV de 8 campos que emite este
+ * archivo sigue siendo válido: bridge/serial_reader.py lo acepta y rellena
+ * btn1=btn2=0 (no tiene botones). Compilar con `pio run -e esp32dev`.
+ *
  * Lee MPU6050 (I2C) + FSR + potenciómetro y emite una trama CSV por
  * Serial USB a 50 Hz:
  *

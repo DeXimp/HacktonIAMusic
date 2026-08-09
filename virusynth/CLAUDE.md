@@ -7,8 +7,9 @@ contrato y después se escribe el código.
 ## 1. Visión del proyecto
 
 ViruSynth es un instrumento musical colaborativo en tiempo real con cuatro actores
-simultáneos: un **performer** local con sensores físicos (ESP32: MPU6050 + FSR +
-potenciómetro), una **audiencia** remota que vota parámetros musicales desde el navegador,
+simultáneos: un **performer** local con sensores físicos (Arduino UNO — hardware
+principal; ESP32 pausado temporalmente por fallas físicas/térmicas —: MPU6050 + FSR +
+potenciómetro + botones), una **audiencia** remota que vota parámetros musicales desde el navegador,
 **artistas remotos** que proponen patrones de notas, y una **IA Directora** (Claude) que
 analiza el contexto global cada 5–10 s, sugiere mutaciones musicales coherentes y resuelve
 choques armónicos. El audio se sintetiza localmente en Pure Data con latencia <20 ms; la
@@ -20,7 +21,7 @@ autónomo). Es el MVP de una plataforma SaaS de performances musicales interacti
 **El LLM NUNCA está en el audio path.** El audio es 100% local; la IA es un loop asíncrono.
 
 - **Loop 1 — Audio realtime (<20 ms, solo loopback)**:
-  `ESP32 →(Serial USB 115200, 50 Hz)→ Bridge (hilo serial + mapping) →(OSC UDP :9000)→ Pure Data → 🔊`
+  `Hardware emisor (Arduino UNO / ESP32, según HARDWARE_BOARD) →(Serial USB 115200, 50 Hz)→ Bridge (hardware_link + mapping) →(OSC UDP :9000)→ Pure Data → 🔊`
 - **Loop 2 — Colaboración + IA (1–5 s de tolerancia)**:
   `Pd →(OSC :8000 telemetría)→ Bridge ↔(WS :8765 o Portal SDK)↔ Audiencia/Artistas` y
   `Bridge →(HTTPS, timeout 5 s)→ Claude → validación → OSC → Pd`
@@ -44,13 +45,19 @@ Reparto de responsabilidades (innegociable):
 | Realtime | websockets | ≥12 |
 | IA | anthropic (opcional en runtime) | ≥0.40 |
 | Audio | Pure Data **Vanilla** | 0.46+ (instalado: 0.56-2) |
-| Firmware | ESP32 Arduino core vía PlatformIO (board `esp32dev`) | espressif32 |
+| Firmware | Arduino core vía PlatformIO (board `uno`, principal — `esp32dev`, pausado) | atmelavr / espressif32 |
 | Sensores | Adafruit MPU6050 + Adafruit Unified Sensor | ^2.2 / ^1.1 |
-| Web | HTML/CSS/JS vanilla + Canvas API — **sin CDNs, sin frameworks** | — |
+| Web | HTML/CSS/JS vanilla + Canvas API + Web Audio API — **sin CDNs, sin frameworks** | — |
 
 Dependencias opcionales en runtime: si falta `anthropic` → reglas locales; si falta
-`websockets` → sin capa realtime; si falta `pyserial` → `--mock-sensors`; si falta
-`python-osc` → codec interno `osc_mini`. **El bridge nunca muere por un import.**
+`websockets` → sin capa realtime; si falta `pyserial` → performer sintético automático
+(`hardware_link.py`, ya no requiere `--mock-sensors` a mano); si falta `python-osc` →
+codec interno `osc_mini`. **El bridge nunca muere por un import.**
+
+**Hardware emisor (arquitectura):** cualquier placa que hable el CSV de
+`docs/osc-protocol.md` es intercambiable sin tocar el bridge — `HARDWARE_BOARD` (env,
+default `arduino_uno`) selecciona el perfil (`bridge/config.py:BOARD_PROFILES`) que fija
+`ADC_MAX` y el voltaje lógico. Motivo del pivote actual: fallas físicas/térmicas del ESP32.
 
 ## 4. Convenciones de código
 
@@ -81,10 +88,10 @@ aplican de forma asíncrona cuando llegan; nunca se espera por ellos.
 
 | Conexión | Transporte | Puerto | Formato |
 |---|---|---|---|
-| ESP32 → Bridge | Serial USB 115200 | `SERIAL_PORT` (env) | CSV `ax,ay,az,gx,gy,gz,fsr,pot\n` @ 50 Hz |
-| Bridge → Pd | OSC/UDP | localhost:**9000** | `/pd/set/*`, `/pd/trigger/note` |
+| Hardware → Bridge | Serial USB 115200 | `SERIAL_PORT` (env) | CSV `ax,ay,az,gx,gy,gz,fsr,pot[,btn1,btn2]\n` @ 50 Hz — ADC 0–1023 (Arduino UNO) o 0–4095 (ESP32) según `HARDWARE_BOARD` |
+| Bridge → Pd | OSC/UDP | localhost:**9000** | `/pd/set/*`, `/pd/trigger/note`, `/pd/trigger/button1`, `/pd/sensor/*` |
 | Pd → Bridge | OSC/UDP | localhost:**8000** | `/pd/state/amplitude`, `/pd/state/last_note` |
-| Bridge ↔ Web | WebSocket | :**8765** | JSON `{type, channel, data}` |
+| Bridge ↔ Web | WebSocket | :**8765** | JSON `{type, channel, data}` (incl. `jam:note_triggered` para el mini-sintetizador de audiencia) |
 | Web estática | HTTP | :**8080** | `python -m http.server` |
 | Bridge → LLM | HTTPS | — | Anthropic tool use (`propose_mutation`) |
 
@@ -100,7 +107,7 @@ Cadena de degradación (cada eslabón se prueba antes de la demo):
 | LLM lento/caído/sin key | Reglas locales de `music_engine.py` | timeout 5 s, `source: "reglas_locales"` visible en el feed |
 | Decisión IA inválida | Se descarta y se usa la regla local | `music_engine.validate_decision()` |
 | Portal sin SDK/credenciales | Servidor WS local `ws://localhost:8765` | mismos channels `jam:*` |
-| ESP32 desconectado | `--mock-sensors` (performer sintético) | el show sigue; reconexión serial automática cada 3 s |
+| Hardware desconectado | Performer sintético automático (`hardware_link.py`) | el show sigue sin intervención: se activa solo al no detectar hardware y se desactiva solo al reconectar; `--mock-sensors` sigue disponible para forzarlo; reconexión cada 3 s |
 | Pd cerrado | `scripts/test-osc.py` (simulador que imprime) | se demuestra el flujo de control |
 | Sin internet | Todo lo anterior — el sistema es 100% local | — |
 
@@ -113,7 +120,8 @@ no se detiene jamás. Cooldown de cambio de escala: 20 s (coherencia musical).
 |---|---|---|
 | `ANTHROPIC_API_KEY` | (vacío → reglas locales) | IA Director |
 | `AI_MODEL` | `claude-sonnet-5` | modelo del director |
-| `SERIAL_PORT` | `COM5` | puerto del ESP32 |
+| `HARDWARE_BOARD` | `arduino_uno` | placa activa (`bridge/config.py:BOARD_PROFILES`) — define `ADC_MAX` y voltaje lógico |
+| `SERIAL_PORT` | `COM5` | puerto de la placa |
 | `SERIAL_BAUD` | `115200` | baudios |
 | `WS_PORT` | `8765` | servidor realtime local |
 | `PD_SEND_PORT` / `PD_RECV_PORT` | `9000` / `8000` | OSC con Pd |
@@ -131,8 +139,8 @@ python -m venv .venv
 powershell -ExecutionPolicy Bypass -File scripts\start-all.ps1
 
 # Manual, pieza por pieza
-.venv\Scripts\python -m bridge.main --mock-sensors        # bridge (sin hardware)
-.venv\Scripts\python -m bridge.main --serial-port COM7    # bridge (con ESP32)
+.venv\Scripts\python -m bridge.main --mock-sensors        # bridge (fuerza performer sintético)
+.venv\Scripts\python -m bridge.main --serial-port COM7    # bridge (con hardware; sin hardware, cae a mock solo)
 python -m http.server 8080 -d web                          # web en http://localhost:8080
 # Pure Data: abrir pd-patches\main.pd y activar DSP
 
@@ -142,4 +150,5 @@ python scripts\validate-pd.py pd-patches\main.pd           # grafo del patch
 .venv\Scripts\python -m unittest discover -s bridge\tests  # lógica musical
 ```
 
-Firmware: `pio run -t upload` dentro de `firmware/` (o Arduino IDE con core esp32).
+Firmware: `pio run -t upload` dentro de `firmware/` compila el Arduino UNO (placa
+principal, `default_envs`); `pio run -e esp32dev -t upload` compila el ESP32 pausado.

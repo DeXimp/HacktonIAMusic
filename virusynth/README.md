@@ -3,12 +3,14 @@
 **¿Qué pasa cuando un instrumento musical tiene tres tipos de músicos
 simultáneos: un humano con sensores, una multitud online y una IA directora?**
 
-Proyecto para el Realtime Hackathon by Portal (7–9 ago 2026). Un ESP32 con
-sensores toca un sintetizador en Pure Data con <20 ms de latencia; la
-audiencia vota escala/tempo/FX desde su teléfono; artistas remotos inyectan
-patrones; y un Director IA (Claude) arbitra cada ~7 s con musicalidad — y con
-reglas locales de teoría musical si la nube falla. Ver [CLAUDE.md](CLAUDE.md)
-(contrato de arquitectura) y [docs/architecture.md](docs/architecture.md).
+Proyecto para el Realtime Hackathon by Portal (7–9 ago 2026). Un Arduino UNO
+con sensores toca un sintetizador en Pure Data con <20 ms de latencia (el
+ESP32 sigue soportado, pero pausado temporalmente por fallas físicas); la
+audiencia vota escala/tempo/FX desde su teléfono y puede escuchar la jam en
+vivo desde el navegador; artistas remotos inyectan patrones; y un Director IA
+(Claude) arbitra cada ~7 s con musicalidad — y con reglas locales de teoría
+musical si la nube falla. Ver [CLAUDE.md](CLAUDE.md) (contrato de
+arquitectura) y [docs/architecture.md](docs/architecture.md).
 
 ## Quickstart (Windows)
 
@@ -63,7 +65,7 @@ la demo funciona igual.
 |---|---|
 | API de Claude | sigue: decisiones por reglas locales (chip "reglas locales" en el feed) |
 | Portal / internet | sigue: WS local en LAN (`ws://<IP>:8765`) |
-| ESP32 | sigue: `--mock-sensors` (performer sintético) |
+| Hardware físico | sigue: performer sintético automático (o `--mock-sensors` a mano) |
 | Pure Data | sigue el flujo de control: `scripts/test-osc.py` lo imprime |
 
 ## Estructura
@@ -71,9 +73,11 @@ la demo funciona igual.
 ```
 bridge/      orquestador Python (cerebro): estado, secuenciador, IA, WS, OSC
 pd-patches/  main.pd — synth+FX 100 % Pd vanilla (0.46+, probado en 0.56)
-web/         app de 3 roles (audiencia/artista/escenario), vanilla JS, sin CDNs
-firmware/    ESP32 PlatformIO: MPU6050+FSR+pot → CSV 50 Hz (+WiFi-OSC opcional)
-docs/        arquitectura · protocolo OSC · channels jam:* · hardware ESP32
+web/         app de 3 roles (audiencia/artista/escenario), vanilla JS, sin CDNs;
+             la audiencia puede escuchar en vivo vía Web Audio API
+firmware/    PlatformIO: Arduino UNO (principal) + ESP32 (pausado) —
+             MPU6050+FSR+pot+botones → CSV 50 Hz (ESP32 además WiFi-OSC opcional)
+docs/        arquitectura · protocolo OSC · channels jam:* · hardware (UNO/ESP32)
 scripts/     start-all, smoke test, simulador de Pd, validador de patches
 ```
 
