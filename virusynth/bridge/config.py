@@ -62,8 +62,28 @@ STATE_BROADCAST_S = 0.1    # jam:state a 10 Hz
 VOTES_BROADCAST_S = 1.0    # jam:votes a 1 Hz
 FX_APPLY_S = 0.5           # suavizado de FX votados hacia Pd
 
+# --- Placa activa (arquitectura de hardware emisor, CLAUDE.md §2) ---
+# El protocolo CSV es el mismo para cualquier placa que lo hable; lo único
+# que cambia entre ellas es el rango crudo del ADC (fsr/pot). Cambiar de
+# hardware es cambiar HARDWARE_BOARD — nada más en el bridge se toca.
+# El ESP32 queda pausado temporalmente por fallas térmicas/físicas: el
+# perfil se conserva para cuando vuelva a estar en servicio.
+BOARD_PROFILES = {
+    "arduino_uno": {"adc_max": 1023, "logic_voltage": 5.0,
+                     "label": "Arduino UNO (ATmega328P, ADC 10 bits) — principal"},
+    "esp32": {"adc_max": 4095, "logic_voltage": 3.3,
+              "label": "ESP32 DevKit v1 (ADC1 12 bits, atenuación 11 dB) — pausado"},
+}
+HARDWARE_BOARD = os.getenv("HARDWARE_BOARD", "arduino_uno").strip().lower()
+if HARDWARE_BOARD not in BOARD_PROFILES:
+    HARDWARE_BOARD = "arduino_uno"
+_board = BOARD_PROFILES[HARDWARE_BOARD]
+ADC_MAX = _int("ADC_MAX", _board["adc_max"])       # override manual posible
+LOGIC_VOLTAGE = _board["logic_voltage"]
+
 # --- Mapeo de sensores (ver docs/osc-protocol.md y mapping.py) ---
-FSR_TRIGGER_THRESHOLD = 600     # 0..4095
+FSR_TRIGGER_RATIO = 600 / 4095      # calibrado originalmente en el ESP32 (12 bits)
+FSR_TRIGGER_THRESHOLD = _int("FSR_TRIGGER_THRESHOLD", round(ADC_MAX * FSR_TRIGGER_RATIO))
 CUTOFF_MIN_HZ, CUTOFF_MAX_HZ = 300.0, 4000.0
 GYRO_FULL_SCALE_DPS = 250.0
 PERFORMER_ACTIVE_WINDOW_S = 3.0
