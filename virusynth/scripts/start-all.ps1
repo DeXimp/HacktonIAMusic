@@ -1,4 +1,4 @@
-# ViruSynth — arranque todo-en-uno (Windows)
+﻿# ViruSynth — arranque todo-en-uno (Windows)
 #   powershell -ExecutionPolicy Bypass -File scripts\start-all.ps1
 #   Flags:  -NoPd  -NoAI  -Mock  -SerialPort COM7  -WebPort 8765  -Tunnel
 #
@@ -117,7 +117,11 @@ if ($Tunnel) {
             $publicUrl = ($tunnels.tunnels | Where-Object { $_.proto -eq "https" } | Select-Object -First 1).public_url
             if ($publicUrl) {
                 Write-Host ""
-                Write-Host "Link público (cualquier red) — compartilo con audiencia/escenario remoto:" -ForegroundColor Green
+                # Ojo: nada de em dash (—) DENTRO de un string. Este archivo se
+                # guarda en UTF-8 con BOM justamente para que PS 5.1 no lo lea
+                # como CP1252; sin BOM, los bytes del em dash terminan en un
+                # `”` que PowerShell acepta como comilla y parte la cadena.
+                Write-Host "Link publico (cualquier red) -- compartilo con audiencia/escenario remoto:" -ForegroundColor Green
                 Write-Host "  Audiencia:  $publicUrl/?role=audience" -ForegroundColor Cyan
                 Write-Host "  Artistas:   $publicUrl/?role=artist" -ForegroundColor Magenta
                 Write-Host "  Escenario:  $publicUrl/?role=stage" -ForegroundColor Yellow
