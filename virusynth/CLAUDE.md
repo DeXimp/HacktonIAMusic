@@ -92,7 +92,7 @@ aplican de forma asíncrona cuando llegan; nunca se espera por ellos.
 | Bridge → Pd | OSC/UDP | localhost:**9000** | `/pd/set/*`, `/pd/trigger/note`, `/pd/trigger/button1`, `/pd/sensor/*` |
 | Pd → Bridge | OSC/UDP | localhost:**8000** | `/pd/state/amplitude`, `/pd/state/last_note` |
 | Bridge ↔ Web | WebSocket | :**8765** | JSON `{type, channel, data}` (incl. `jam:note_triggered` para el mini-sintetizador de audiencia) |
-| Web estática | HTTP | :**8080** | `python -m http.server` |
+| Web estática | HTTP | :**8080** (o el primer libre — `start-all.ps1` autodetecta si algo más en la máquina ya lo usa, p.ej. NI Web Server) | `python -m http.server` |
 | Bridge → LLM | HTTPS | — | Anthropic tool use (`propose_mutation`) |
 
 Especificación completa: `docs/osc-protocol.md` y `docs/portal-channels.md`. Cualquier

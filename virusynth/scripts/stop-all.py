@@ -8,7 +8,7 @@ Busca y mata:
   - Pure Data (pd.exe)
   - Bridge (python -m bridge.main)
   - Simulador OSC (scripts\\test-osc.py), si se usó en lugar de Pd
-  - Servidor web (python -m http.server 8080)
+  - Servidor web (python -m http.server <puerto>, el que haya elegido start-all.ps1)
 """
 
 import argparse
@@ -74,11 +74,15 @@ MATCHERS = [
         lambda p: "python" in p["name"].lower() and "test-osc.py" in p["cmd"],
     ),
     (
-        "Servidor web (http.server :8080)",
+        "Servidor web (http.server)",
+        # start-all.ps1 elige el primer puerto libre a partir de 8080 (puede
+        # no ser 8080 si algo mas en la maquina ya lo esta usando), asi que
+        # no se puede matchear por numero de puerto -- se matchea por la
+        # carpeta que sirve en su lugar.
         lambda p: (
             "python" in p["name"].lower()
             and "http.server" in p["cmd"]
-            and "8080" in p["cmd"]
+            and "web" in p["cmd"]
         ),
     ),
 ]

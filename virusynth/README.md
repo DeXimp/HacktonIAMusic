@@ -20,8 +20,12 @@ powershell -ExecutionPolicy Bypass -File scripts\start-all.ps1        # todo moc
 powershell -ExecutionPolicy Bypass -File scripts\start-all.ps1 -SerialPort COM7   # con ESP32
 ```
 
-Eso abre Pure Data (o el simulador), el bridge y la web en `http://localhost:8080`.
-La audiencia entra desde el móvil con la IP de la máquina: `http://<IP>:8080/?role=audience`.
+Eso abre Pure Data (o el simulador), el bridge y la web en `http://localhost:8080`
+(si ese puerto ya está en uso por otra cosa en tu máquina —p.ej. National
+Instruments Web Server, común si tenés LabVIEW—, `start-all.ps1` detecta el
+conflicto solo y usa el siguiente puerto libre; lo imprime en la consola).
+La audiencia entra desde el móvil con la IP de la máquina: `http://<IP>:8080/?role=audience`
+(o el puerto que haya quedado impreso).
 
 Manual, pieza a pieza:
 
