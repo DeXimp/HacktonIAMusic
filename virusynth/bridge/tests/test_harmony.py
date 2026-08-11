@@ -51,6 +51,18 @@ class TestChordPitchClasses(unittest.TestCase):
         with self.assertRaises(harmony.HarmonyError):
             harmony.chord_pitch_classes("H_minor", "i")
 
+    def test_dorian_usa_sus_propios_intervalos(self):
+        # A_dorian: [0, 2, 3, 5, 7, 9, 10] => grados {1:0, 2:2, 3:3, 4:5, 5:7, 6:9, 7:10}
+        # VI en A_dorian = grado 6 => intervalo 9 => raiz (9+9)%12=6 (F#, no F)
+        # Acorde F# mayor = F# A# C# = 6 10 1
+        self.assertEqual(harmony.chord_pitch_classes("A_dorian", "VI"), (6, 10, 1))
+
+    def test_harmonic_minor_usa_sus_propios_intervalos(self):
+        # A_harmonic_minor: [0, 2, 3, 5, 7, 8, 11] => grados {1:0, 2:2, 3:3, 4:5, 5:7, 6:8, 7:11}
+        # VII en A_harmonic_minor = grado 7 => intervalo 11 => raiz (9+11)%12=8 (G#, no G)
+        # Acorde G# mayor = G# B D# = 8 0 3
+        self.assertEqual(harmony.chord_pitch_classes("A_harmonic_minor", "VII"), (8, 0, 3))
+
 
 class TestChordAt(unittest.TestCase):
     def test_cicla_la_progresion(self):
@@ -77,8 +89,8 @@ class TestVoiceLead(unittest.TestCase):
     def test_elige_el_voicing_mas_cercano_al_anterior(self):
         prev = [60, 64, 67]                      # Do mayor
         result = harmony.voice_lead(prev, "A_minor", "VI", 55, 79)
-        # F A C: desde 60,64,67 lo mas cercano es 65,69,72 -> total 15 semitonos.
-        self.assertEqual(result, [65, 69, 72])
+        # F A C: conserva el Do (60), cambia Mi a Fa (65), Sol a La (69) -> coste 3
+        self.assertEqual(result, [60, 65, 69])
 
     def test_sin_voicing_previo_no_revienta(self):
         result = harmony.voice_lead([], "A_minor", "i", 55, 79)
@@ -90,6 +102,30 @@ class TestVoiceLead(unittest.TestCase):
     def test_resultado_siempre_ordenado(self):
         result = harmony.voice_lead([79, 55, 60], "A_minor", "VII", 55, 79)
         self.assertEqual(result, sorted(result))
+
+    def test_rango_estrecho_omite_clases_sin_candidatos(self):
+        # Rango muy estrecho [60, 64]: solo caben Do y Mi, no Fa ni La.
+        # El acorde A_minor "i" es A C E (9, 0, 4).
+        # En [60, 64] estan: Do (0) en 60, 72 (solo 60); Mi (4) en 64; La (9) en 57, 69 (ninguno)
+        # Resultado: acorde incompleto [60, 64] (Do y Mi)
+        result = harmony.voice_lead([], "A_minor", "i", 60, 64)
+        # Solo Do y Mi caben; La se omite
+        self.assertEqual(len(result), 2)
+        for note in result:
+            self.assertGreaterEqual(note, 60)
+            self.assertLessEqual(note, 64)
+        for note in result:
+            self.assertTrue(harmony.is_chord_tone(note, "A_minor", "i"))
+
+    def test_prev_fuera_de_rango_no_afecta_resultado(self):
+        # prev tiene notas fuera del rango nuevo
+        prev = [500, 120, 50]  # todas fuera de [60, 79]
+        result = harmony.voice_lead(prev, "A_minor", "i", 60, 79)
+        # Resultado valido: todas las notas en [60, 79] y todas tonos del acorde
+        for note in result:
+            self.assertGreaterEqual(note, 60)
+            self.assertLessEqual(note, 79)
+            self.assertTrue(harmony.is_chord_tone(note, "A_minor", "i"))
 
 
 class TestIsChordTone(unittest.TestCase):

@@ -10,14 +10,11 @@ lo que hace un musico que toca una melodia pentatonica sobre acordes menores.
 """
 from __future__ import annotations
 
+import itertools
 import re
 from typing import Sequence
 
 from . import music_engine
-
-# Semitonos de cada grado respecto a la tonica, por marco diatonico.
-DEGREE_MINOR = {1: 0, 2: 2, 3: 3, 4: 5, 5: 7, 6: 8, 7: 10}
-DEGREE_MAJOR = {1: 0, 2: 2, 3: 4, 4: 5, 5: 7, 6: 9, 7: 11}
 
 # Modos que se armonizan con el marco menor; el resto, con el mayor.
 MINOR_MODES = frozenset({"minor", "minor_pentatonic", "blues", "dorian",
@@ -62,11 +59,29 @@ def parse_roman(roman: str) -> tuple[int, str]:
 
 
 def _frame(scale: str) -> tuple[int, dict[int, int]]:
+    """Raiz y tabla de grados para una escala.
+
+    Si el modo tiene 7 intervalos propios en music_engine.SCALE_INTERVALS,
+    derivar la tabla de esos intervalos. Si tiene <7 (pentatonicas, blues),
+    usar el marco mayor o menor natural segun MINOR_MODES.
+    """
     try:
         root_pc, mode = music_engine.parse_scale(scale)
     except music_engine.ScaleError as exc:
         raise HarmonyError(str(exc)) from exc
-    return root_pc, (DEGREE_MINOR if mode in MINOR_MODES else DEGREE_MAJOR)
+
+    intervals = music_engine.SCALE_INTERVALS[mode]
+    if len(intervals) == 7:
+        # Derivar tabla de grados de los intervalos propios del modo
+        degrees = {i + 1: v for i, v in enumerate(intervals)}
+    else:
+        # Modo con <7 notas: usar marco mayor o menor natural
+        if mode in MINOR_MODES:
+            degrees = {1: 0, 2: 2, 3: 3, 4: 5, 5: 7, 6: 8, 7: 10}
+        else:
+            degrees = {1: 0, 2: 2, 3: 4, 4: 5, 5: 7, 6: 9, 7: 11}
+
+    return root_pc, degrees
 
 
 def chord_pitch_classes(scale: str, roman: str) -> tuple[int, ...]:
@@ -98,21 +113,57 @@ def voice_lead(prev: Sequence[int], scale: str, roman: str,
                lo: int, hi: int) -> list[int]:
     """Voicing del acorde lo mas cerca posible del anterior.
 
-    Sin esto los acordes saltan de octava entre compases y suena a maquina.
-    Determinista: en empate gana la nota mas grave.
+    Se prueban todas las permutaciones de asignacion de PCs a anchors y se
+    elige la de coste minimo (suma de distancias). En empate, gana el voicing
+    ordenado menor. Omite clases de altura sin candidatos en el rango.
+    Determinista.
     """
     pcs = chord_pitch_classes(scale, roman)
-    middle = lo + (hi - lo) // 2
     anchors = list(prev) if prev else []
-    while len(anchors) < len(pcs):
-        anchors.append(anchors[-1] if anchors else middle)
 
-    voicing: list[int] = []
-    for pc, anchor in zip(pcs, anchors):
+    # Para cada clase de altura, obtener candidatos en el rango
+    candidates_per_pc: list[list[int]] = []
+    for pc in pcs:
         candidates = [n for n in range(lo, hi + 1) if n % 12 == pc]
-        voicing.append(min(candidates, key=lambda n: (abs(n - anchor), n))
-                       if candidates else anchor)
-    return sorted(voicing)
+        candidates_per_pc.append(candidates)
+
+    # Omitir clases de altura sin candidatos
+    valid_indices = [i for i, c in enumerate(candidates_per_pc) if c]
+    if not valid_indices:
+        return []
+
+    valid_pcs = [pcs[i] for i in valid_indices]
+    valid_candidates = [candidates_per_pc[i] for i in valid_indices]
+    num_notes = len(valid_pcs)
+
+    # Asegurar suficientes anchors
+    while len(anchors) < num_notes:
+        if anchors:
+            anchors.append(anchors[-1])
+        else:
+            anchors.append(lo + (hi - lo) // 2)
+
+    # Probar todas las permutaciones de anchors
+    best_voicing: list[int] | None = None
+    best_cost = float('inf')
+
+    for anchor_perm in itertools.permutations(anchors[:num_notes]):
+        # Para esta asignacion de anchors, elegir el mejor candidato para cada PC
+        voicing = []
+        cost = 0
+        for pc_idx, anchor in enumerate(anchor_perm):
+            candidates = valid_candidates[pc_idx]
+            best_candidate = min(candidates, key=lambda n: (abs(n - anchor), n))
+            voicing.append(best_candidate)
+            cost += abs(best_candidate - anchor)
+
+        # Actualizar el mejor si es mejor coste, o mismo coste pero menor ordenado
+        sorted_voicing = sorted(voicing)
+        if cost < best_cost or (cost == best_cost and (best_voicing is None or sorted_voicing < best_voicing)):
+            best_cost = cost
+            best_voicing = sorted_voicing
+
+    return best_voicing if best_voicing else []
 
 
 def chord_degrees(scale: str, roman: str) -> tuple[int, ...]:
