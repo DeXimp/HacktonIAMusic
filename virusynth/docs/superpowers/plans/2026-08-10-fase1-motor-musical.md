@@ -51,6 +51,26 @@ El spec §12 pone tres cosas en la Fase 1 que aquí se mueven o se matizan. Est�
 
 ### Task 1: `harmony.py` — grados romanos y conducción de voces
 
+> **⚠️ EJECUTADA — los bloques de código de abajo son el borrador ORIGINAL y tenían
+> cuatro defectos. La implementación real es `8c8495c` + `783c019` + `0a961d1`.
+> Si re-ejecutás esta tarea desde este texto, reintroducís los cuatro. Fueron:
+>
+> 1. **`voice_lead` emitía notas inválidas** — con `... if candidates else anchor`,
+>    cuando ninguna nota de una clase cabía en `[lo,hi]` devolvía `anchor` sin acotar:
+>    `voice_lead(prev=[500], lo=60, hi=64)` → `[60, 64, 500]`. Corregido omitiendo
+>    las clases sin candidatos.
+> 2. **`_frame` rompía 5 de los 10 modos** — `dorian`, `phrygian`, `harmonic_minor`,
+>    `mixolydian` y `lydian` tienen sus 7 grados propios en `SCALE_INTERVALS`, pero se
+>    los forzaba al marco menor/mayor natural, dando raíces fuera de la escala.
+>    Corregido derivando la tabla de los intervalos del propio modo cuando tiene 7;
+>    el marco prestado queda solo para pentatónicas (5) y blues (6).
+> 3. **`voice_lead` no conducía voces** — emparejaba por posición en vez de por
+>    proximidad. Corregido probando todas las permutaciones y quedándose con la de
+>    coste mínimo. El test de abajo espera `[65, 69, 72]`, que es la respuesta MALA;
+>    la correcta es `[60, 65, 69]`, coste 3 en vez de 15.
+> 4. **Tablas de grados duplicadas** respecto a `music_engine.SCALE_INTERVALS`.
+>    Corregido derivando ambos marcos de ahí.
+
 **Files:**
 - Create: `bridge/harmony.py`
 - Test: `bridge/tests/test_harmony.py`
