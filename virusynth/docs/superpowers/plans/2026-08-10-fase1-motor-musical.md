@@ -690,7 +690,7 @@ git commit -m "feat(bridge): motor de leitmotiv -- motivo en grados relativos y 
 **Interfaces:**
 - Consumes: `motif.Motif`, `motif.MotifStep` (Task 2); `music_engine.parse_scale`; `config.BPM_MIN`, `config.BPM_MAX`.
 - Produces:
-  - `VoicePatch(timbre, octave, range_lo, range_hi, vibrato=0.0, gain=1.0)` — frozen
+  - `VoicePatch(timbre, range_lo, range_hi, vibrato=0.0, gain=1.0)` — frozen. **No lleva campo `octave`**: el registro de cada voz ya lo fija su par `range_lo`/`range_hi`, y un segundo campo para lo mismo es configuración muerta.
   - `StyleDeck(id, name, scales, progressions, tempo_range, default_bpm, swing, voices, drum_patterns, motif_seeds, fx)` — frozen
   - `DRUM_PATTERNS: dict[str, dict[str, str]]` — 16 caracteres por instrumento, `x` golpe / `.` silencio
   - `VOICE_NAMES = ("lead", "bass", "chords", "pad")`
@@ -882,8 +882,9 @@ DRUM_PATTERNS: dict[str, dict[str, str]] = {
 
 @dataclass(frozen=True)
 class VoicePatch:
+    # El registro de la voz lo fija el par range_lo/range_hi: no hace falta un
+    # campo `octave` aparte, seria la misma informacion dos veces.
     timbre: str          # pulse25 | pulse50 | triangle | saw | bell | choir
-    octave: int          # desplazamiento respecto al root de la jam
     range_lo: int
     range_hi: int
     vibrato: float = 0.0
@@ -928,13 +929,13 @@ _DETERMINACION = StyleDeck(
     default_bpm=124,
     swing=0.16,
     voices={
-        "lead":   VoicePatch("pulse25", octave=0, range_lo=64, range_hi=91,
+        "lead":   VoicePatch("pulse25", range_lo=64, range_hi=91,
                              vibrato=0.35, gain=1.0),
-        "bass":   VoicePatch("triangle", octave=-2, range_lo=33, range_hi=57,
+        "bass":   VoicePatch("triangle", range_lo=33, range_hi=57,
                              vibrato=0.0, gain=0.95),
-        "chords": VoicePatch("pulse50", octave=-1, range_lo=52, range_hi=76,
+        "chords": VoicePatch("pulse50", range_lo=52, range_hi=76,
                              vibrato=0.0, gain=0.6),
-        "pad":    VoicePatch("choir", octave=-1, range_lo=48, range_hi=72,
+        "pad":    VoicePatch("choir", range_lo=48, range_hi=72,
                              vibrato=0.1, gain=0.45),
     },
     drum_patterns={
@@ -969,13 +970,13 @@ _NOCTURNO = StyleDeck(
     default_bpm=76,
     swing=0.0,
     voices={
-        "lead":   VoicePatch("bell", octave=0, range_lo=64, range_hi=88,
+        "lead":   VoicePatch("bell", range_lo=64, range_hi=88,
                              vibrato=0.15, gain=0.9),
-        "bass":   VoicePatch("triangle", octave=-2, range_lo=33, range_hi=55,
+        "bass":   VoicePatch("triangle", range_lo=33, range_hi=55,
                              gain=0.85),
-        "chords": VoicePatch("choir", octave=-1, range_lo=52, range_hi=74,
+        "chords": VoicePatch("choir", range_lo=52, range_hi=74,
                              gain=0.5),
-        "pad":    VoicePatch("saw", octave=-1, range_lo=45, range_hi=69,
+        "pad":    VoicePatch("saw", range_lo=45, range_hi=69,
                              gain=0.4),
     },
     drum_patterns={
@@ -1006,13 +1007,13 @@ _ARCADE = StyleDeck(
     default_bpm=152,
     swing=0.0,
     voices={
-        "lead":   VoicePatch("pulse25", octave=1, range_lo=67, range_hi=95,
+        "lead":   VoicePatch("pulse25", range_lo=67, range_hi=95,
                              vibrato=0.2, gain=1.0),
-        "bass":   VoicePatch("pulse50", octave=-2, range_lo=36, range_hi=57,
+        "bass":   VoicePatch("pulse50", range_lo=36, range_hi=57,
                              gain=0.9),
-        "chords": VoicePatch("pulse50", octave=0, range_lo=55, range_hi=79,
+        "chords": VoicePatch("pulse50", range_lo=55, range_hi=79,
                              gain=0.55),
-        "pad":    VoicePatch("saw", octave=-1, range_lo=48, range_hi=72,
+        "pad":    VoicePatch("saw", range_lo=48, range_hi=72,
                              gain=0.35),
     },
     drum_patterns={
@@ -1400,14 +1401,27 @@ class TestBateria(unittest.TestCase):
 
 class TestVoiceLeadingEntreCompases(unittest.TestCase):
     def test_el_voicing_previo_acerca_los_acordes(self):
-        ctx = make_ctx("drop")
-        primero = render.render_bar(ctx, 0)
-        segundo = render.render_bar(ctx, 1)
+        # Hay que AVANZAR bar_in_section entre los dos renders: si no, ambos
+        # compases reciben el mismo acorde, el salto es 0 por construccion y
+        # el test no probaria nada.
+        ctx = make_ctx("drop", bar_in_section=0)
+        primero = render.render_bar(ctx, 0)     # i
+        ctx.bar_in_section = 1
+        segundo = render.render_bar(ctx, 1)     # VI
+
         acordes_1 = [e for e in primero.events if e.voice == "chords"]
         acordes_2 = [e for e in segundo.events if e.voice == "chords"]
-        if acordes_1 and acordes_2:
-            salto = abs(acordes_2[0].notes[0] - acordes_1[0].notes[0])
-            self.assertLessEqual(salto, 7, "los acordes saltan de octava")
+        self.assertTrue(acordes_1, "el drop deberia traer acordes")
+        self.assertTrue(acordes_2, "el drop deberia traer acordes")
+
+        # Guardia: el acorde cambio de verdad.
+        self.assertNotEqual(acordes_1[0].notes, acordes_2[0].notes)
+
+        # Sin conduccion de voces el voicing saltaria de octava; con ella,
+        # cada voz se mueve una quinta como mucho.
+        for antes, despues in zip(acordes_1[0].notes, acordes_2[0].notes):
+            self.assertLessEqual(abs(despues - antes), 7,
+                                 "una voz salto mas de una quinta")
 
 
 class TestDensidad(unittest.TestCase):
@@ -1503,10 +1517,14 @@ def _scale_size(scale: str) -> int:
 
 
 def _render_bass(ctx: RenderContext, roman: str) -> list[VoiceEvent]:
+    # El registro sale del propio rango de la voz: sumar la clase de altura a
+    # range_lo coloca la nota en la octava mas grave que la voz admite, que es
+    # justo donde tiene que estar un bajo. Sin numeros magicos.
     patch = ctx.deck.voices["bass"]
     pcs = harmony.chord_pitch_classes(ctx.scale, roman)
-    root_note = M.fold_to_range(48 + pcs[0], patch.range_lo, patch.range_hi)
-    fifth = M.fold_to_range(48 + pcs[min(2, len(pcs) - 1)],
+    root_note = M.fold_to_range(patch.range_lo + pcs[0],
+                                patch.range_lo, patch.range_hi)
+    fifth = M.fold_to_range(patch.range_lo + pcs[min(2, len(pcs) - 1)],
                             patch.range_lo, patch.range_hi)
 
     if ctx.section.tempo_mode == "half" or ctx.section.density < 0.4:
