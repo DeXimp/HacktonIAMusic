@@ -1,6 +1,6 @@
 import unittest
 
-from bridge import harmony
+from bridge import harmony, music_engine
 
 
 class TestParseRoman(unittest.TestCase):
@@ -145,6 +145,45 @@ class TestChordDegrees(unittest.TestCase):
         # la escala; el G# NO esta en La menor natural, asi que se omite en vez
         # de inventar un grado que la escala no tiene.
         self.assertEqual(harmony.chord_degrees("A_minor", "V"), (1, 4))
+
+
+class TestFrameDerivation(unittest.TestCase):
+    def test_grados_pentatonico_derivados_de_scale_intervals(self):
+        # Garantiza que _frame no teclea literales para pentatonicas/blues.
+        # Las tablas deben derivarse de music_engine.SCALE_INTERVALS, no hardcodeadas.
+        # Si este test falla, es porque alguien reintrodujo dicts literales.
+
+        # Pentatonica menor: deberia usar marco menor derivado
+        minor_pent_intervals = music_engine.SCALE_INTERVALS["minor_pentatonic"]
+        minor_framework = {i + 1: v for i, v in enumerate(music_engine.SCALE_INTERVALS["minor"])}
+        root_pc, degrees = harmony._frame("Am_pentatonic")
+        self.assertEqual(degrees, minor_framework,
+                         "Pentatonica menor debe derivar del marco menor, no tener literales")
+
+        # Pentatonica mayor: deberia usar marco mayor derivado
+        major_pent_intervals = music_engine.SCALE_INTERVALS["major_pentatonic"]
+        major_framework = {i + 1: v for i, v in enumerate(music_engine.SCALE_INTERVALS["major"])}
+        root_pc, degrees = harmony._frame("C_pentatonic")
+        self.assertEqual(degrees, major_framework,
+                         "Pentatonica mayor debe derivar del marco mayor, no tener literales")
+
+        # Blues (6 intervalos): deberia usar marco menor derivado
+        root_pc, degrees = harmony._frame("Bb_blues")
+        self.assertEqual(degrees, minor_framework,
+                         "Blues debe derivar del marco menor, no tener literales")
+
+    def test_modos_7_intervalos_usan_propios(self):
+        # Verifica que modos de 7 intervalos (dorian, harmonic_minor, etc.)
+        # derivan sus grados de sus propios intervalos, no de un marco general.
+        dorian_intervals = music_engine.SCALE_INTERVALS["dorian"]
+        dorian_expected = {i + 1: v for i, v in enumerate(dorian_intervals)}
+        root_pc, degrees = harmony._frame("A_dorian")
+        self.assertEqual(degrees, dorian_expected)
+
+        harm_minor_intervals = music_engine.SCALE_INTERVALS["harmonic_minor"]
+        harm_minor_expected = {i + 1: v for i, v in enumerate(harm_minor_intervals)}
+        root_pc, degrees = harmony._frame("A_harmonic_minor")
+        self.assertEqual(degrees, harm_minor_expected)
 
 
 if __name__ == "__main__":

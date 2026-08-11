@@ -16,7 +16,8 @@ from typing import Sequence
 
 from . import music_engine
 
-# Modos que se armonizan con el marco menor; el resto, con el mayor.
+# Modos con <7 intervalos que usan el marco menor como fallback (pentatonicas, blues).
+# Los modos de 7 intervalos (minor, dorian, phrygian, harmonic_minor) usan sus propios.
 MINOR_MODES = frozenset({"minor", "minor_pentatonic", "blues", "dorian",
                          "phrygian", "harmonic_minor"})
 
@@ -63,7 +64,7 @@ def _frame(scale: str) -> tuple[int, dict[int, int]]:
 
     Si el modo tiene 7 intervalos propios en music_engine.SCALE_INTERVALS,
     derivar la tabla de esos intervalos. Si tiene <7 (pentatonicas, blues),
-    usar el marco mayor o menor natural segun MINOR_MODES.
+    derivar del marco mayor o menor natural segun MINOR_MODES.
     """
     try:
         root_pc, mode = music_engine.parse_scale(scale)
@@ -75,11 +76,10 @@ def _frame(scale: str) -> tuple[int, dict[int, int]]:
         # Derivar tabla de grados de los intervalos propios del modo
         degrees = {i + 1: v for i, v in enumerate(intervals)}
     else:
-        # Modo con <7 notas: usar marco mayor o menor natural
-        if mode in MINOR_MODES:
-            degrees = {1: 0, 2: 2, 3: 3, 4: 5, 5: 7, 6: 8, 7: 10}
-        else:
-            degrees = {1: 0, 2: 2, 3: 4, 4: 5, 5: 7, 6: 9, 7: 11}
+        # Modo con <7 notas: derivar del marco mayor o menor natural
+        framework_mode = "minor" if mode in MINOR_MODES else "major"
+        framework_intervals = music_engine.SCALE_INTERVALS[framework_mode]
+        degrees = {i + 1: v for i, v in enumerate(framework_intervals)}
 
     return root_pc, degrees
 
