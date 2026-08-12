@@ -54,6 +54,20 @@ class TestTransformaciones(unittest.TestCase):
         result = M.diminish(SEED, 4)
         self.assertEqual([s.dur for s in result.steps], [1, 1, 1, 1, 1])
 
+    def test_diminish_con_factor_cero_no_revienta(self):
+        # La Fase 2 expone f a la IA via transform_motif: un 0 no puede crashear.
+        self.assertEqual(M.diminish(SEED, 0), SEED)
+
+    def test_diminish_con_factor_negativo_devuelve_el_motivo_intacto(self):
+        self.assertEqual(M.diminish(SEED, -3), SEED)
+
+    def test_augment_con_factor_cero_devuelve_el_motivo_intacto(self):
+        # Sin guarda aplastaba todas las duraciones a 1 en silencio.
+        self.assertEqual(M.augment(SEED, 0), SEED)
+
+    def test_augment_con_factor_negativo_devuelve_el_motivo_intacto(self):
+        self.assertEqual(M.augment(SEED, -2), SEED)
+
     def test_octave_desplaza_una_octava_de_grados(self):
         result = M.octave(SEED, 1, degrees_per_octave=7)
         self.assertEqual([s.degree for s in result.steps], [7, 9, 11, 10, 9])
@@ -76,6 +90,43 @@ class TestReharmonize(unittest.TestCase):
 
     def test_sin_tonos_de_acorde_devuelve_el_motivo_intacto(self):
         self.assertEqual(M.reharmonize(SEED, (), 7), SEED)
+
+    def test_ancla_al_mas_cercano_muy_por_encima_del_registro(self):
+        # Con la ventana fija range(-3, 4) el candidato mas alto era 25.
+        m = M.Motif(steps=(M.MotifStep(27, 4, True),))
+        result = M.reharmonize(m, chord_degrees=(0, 2, 4), scale_size=7)
+        self.assertEqual(result.steps[0].degree, 28)
+
+    def test_ancla_al_mas_cercano_muy_por_debajo_del_registro(self):
+        m = M.Motif(steps=(M.MotifStep(-23, 4, True),))
+        result = M.reharmonize(m, chord_degrees=(0, 2, 4), scale_size=7)
+        self.assertEqual(result.steps[0].degree, -24)
+
+    def test_un_grado_que_ya_es_tono_del_acorde_no_se_mueve(self):
+        # El grado 32 sale de octave(m, 4, 7); 32 % 7 == 4, ya era tono del
+        # acorde, y la ventana fija lo desplazaba una octava entera hasta 25.
+        m = M.Motif(steps=(M.MotifStep(32, 4, True),))
+        result = M.reharmonize(m, chord_degrees=(0, 2, 4), scale_size=7)
+        self.assertEqual(result.steps[0].degree, 32)
+
+    def test_coincide_con_la_fuerza_bruta_en_todo_el_rango_util(self):
+        chord, size = (0, 2, 4), 7
+        wide = [c + size * k for k in range(-60, 61) for c in chord]
+        for degree in range(-90, 91):
+            m = M.Motif(steps=(M.MotifStep(degree, 4, True),))
+            got = M.reharmonize(m, chord, size).steps[0].degree
+            expected = min(wide, key=lambda c: (abs(c - degree), c))
+            self.assertEqual(got, expected, f"grado {degree}")
+
+    def test_octave_alto_y_reharmonize_no_baja_la_nota_una_octava(self):
+        # Regresion de punta a punta: rearmonizar un tono de acorde no puede
+        # producir notas MIDI peores que no rearmonizar.
+        base = M.Motif(steps=(M.MotifStep(4, 4, True), M.MotifStep(2, 4, False)))
+        up = M.octave(base, 4, degrees_per_octave=7)
+        sin_rearmonizar = M.realize(up, "A_minor", 57, 0, 127)
+        con_rearmonizar = M.realize(M.reharmonize(up, (0, 2, 4), 7),
+                                    "A_minor", 57, 0, 127)
+        self.assertEqual(con_rearmonizar, sin_rearmonizar)
 
 
 class TestOrnament(unittest.TestCase):

@@ -56,15 +56,46 @@ def scale_time(m: Motif, factor: float) -> Motif:
 
 
 def augment(m: Motif, f: int = 2) -> Motif:
+    """Estira las duraciones por `f`. Un factor no positivo no hace nada."""
+    if f <= 0:
+        return m
     return scale_time(m, float(f))
 
 
 def diminish(m: Motif, f: int = 2) -> Motif:
+    """Encoge las duraciones por `f`. Un factor no positivo no hace nada.
+
+    La guarda no es decorativa: la Fase 2 expone estas transformaciones a la
+    IA via transform_motif, donde `f` puede venir de una decision del modelo
+    o de un voto sin validar. Un 0 aqui reventaba con ZeroDivisionError.
+    """
+    if f <= 0:
+        return m
     return scale_time(m, 1.0 / float(f))
 
 
 def octave(m: Motif, n: int, degrees_per_octave: int) -> Motif:
     return transpose(m, n * degrees_per_octave)
+
+
+def _nearest_chord_tone(degree: int, chord_degrees: Sequence[int],
+                        scale_size: int) -> int:
+    """El tono de acorde mas cercano a `degree`, en la octava que sea.
+
+    Por cada grado del acorde solo hay dos candidatos capaces de ganar: los
+    dos que enmarcan a `degree`. Se derivan con division entera, asi que la
+    respuesta es exacta para grados arbitrariamente lejanos. Una ventana fija
+    de N octavas deja de ser correcta en cuanto el motivo la desborda, y
+    octave(m, 4, 7) la desborda con lo mas normal del mundo.
+
+    Empate: gana el mas grave, como antes.
+    """
+    candidates = []
+    for c in chord_degrees:
+        k = (degree - c) // scale_size
+        candidates.append(c + scale_size * k)
+        candidates.append(c + scale_size * (k + 1))
+    return min(candidates, key=lambda cand: (abs(cand - degree), cand))
 
 
 def reharmonize(m: Motif, chord_degrees: Sequence[int], scale_size: int) -> Motif:
@@ -75,12 +106,10 @@ def reharmonize(m: Motif, chord_degrees: Sequence[int], scale_size: int) -> Moti
     """
     if not chord_degrees or scale_size <= 0:
         return m
-    candidates = [c + scale_size * k
-                  for k in range(-3, 4) for c in chord_degrees]
     new_steps = []
     for step in m.steps:
         if step.accent:
-            best = min(candidates, key=lambda c: (abs(c - step.degree), c))
+            best = _nearest_chord_tone(step.degree, chord_degrees, scale_size)
             new_steps.append(replace(step, degree=best))
         else:
             new_steps.append(step)
