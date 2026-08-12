@@ -1,4 +1,4 @@
-# Traspaso — Fase 1 del motor musical (sesión interrumpida 2026-08-10)
+# Traspaso — Fase 1 del motor musical (interrumpida 2026-08-10, retomada 2026-08-12)
 
 > Este archivo existe para que una sesión nueva retome exactamente donde se paró,
 > sin volver a deducir nada. Leelo entero antes de tocar código.
@@ -23,7 +23,7 @@ de `.claude/`, que no está en `.gitignore` y se acabaría commiteando). Sigue e
 | Tarea | Estado | Commits |
 |---|---|---|
 | T1 · `harmony.py` | ✅ **completa, revisión limpia** | `8c8495c` → `783c019` → `0a961d1` |
-| T2 · `motif.py` | ⚠️ **implementada, revisión CON HALLAZGOS SIN ARREGLAR** | `1659bf7` |
+| T2 · `motif.py` | ✅ **completa, hallazgos cerrados** | `1659bf7` → `b416bb6` |
 | T3 · `style.py` | pendiente | — |
 | T4 · `arrangement.py` | pendiente | — |
 | T5 · `render.py` | pendiente | — |
@@ -31,41 +31,49 @@ de `.claude/`, que no está en `.gitignore` y se acabaría commiteando). Sigue e
 | T7 · `midi.py` + `render-jam.py` | pendiente | — |
 | T8 · test dorado | pendiente | — |
 
-Tests: baseline 81 → **134 en verde** ahora mismo. Nada roto.
+Tests: baseline 81 → **143 en verde** ahora mismo. Nada roto.
 
 ## ⛔ Punto exacto de reanudación
 
-**T2 tiene tres hallazgos abiertos que NADIE arregló todavía.** El siguiente paso es
-un *fix round 1/5*: retomar un implementador con estos hallazgos, y después una
-re-revisión acotada del diff del fix.
+**El siguiente paso es T3 (`style.py`), arrancando por su `task-brief`.** Quedan 6 tareas:
+T3 a T8.
 
-### Hallazgo 1 — Important — `diminish(m, f=0)` lanza `ZeroDivisionError`
-`bridge/motif.py:63`. `reharmonize` sí guarda su análogo (`scale_size <= 0`), `diminish`
-no. Hoy es inalcanzable (nada la llama), **pero la Fase 2 la expone a la IA vía
-`transform_motif`**, donde `f` puede venir de una decisión del modelo o de un voto sin
-validar. Choca con CLAUDE.md §7 ("los errores se degradan, nunca se propagan a un
-crash"). Fix trivial: acotar `f` antes de dividir.
+T2 se cerró el 2026-08-12 (commit `b416bb6`, 9 tests nuevos, suite 134 → 143). Los dos
+hallazgos Important se reprodujeron en vivo antes de tocar nada y quedaron arreglados; el
+Minor sigue diferido y **no** bloquea. Detalle abajo, para que nadie los vuelva a abrir.
 
-### Hallazgo 2 — Important — `reharmonize` rompe "el tono de acorde más cercano"
-`bridge/motif.py:78-79`. La ventana de candidatos es fija, `range(-3, 4)`, así que con
-`chord_degrees=(0,2,4)` y `scale_size=7` solo cubre grados `[-21, 25]`. Fuera de ahí
-devuelve algo que **no** es el más cercano:
+### Hallazgo 1 — Important — ✅ CERRADO — `diminish(m, f=0)` lanzaba `ZeroDivisionError`
+`bridge/motif.py`. Guarda `f <= 0 → devolver el motivo intacto`, calcada de la que
+`reharmonize` ya tenía para `scale_size`. Se **extendió a `augment`** por el mismo motivo de
+Fase 2: no crasheaba, pero con `f=0` aplastaba todas las duraciones a 1 en silencio, que
+para un motor musical es peor que fallar. Esa extensión es una desviación deliberada
+respecto al hallazgo, que solo mencionaba `diminish`.
 
-```
-degree=27  -> devuelve 25 (dist 2), el correcto es 28 (dist 1)
-degree=-23 -> devuelve -21 (dist 2), el correcto es -24 (dist 1)
-degree=32  -> devuelve 25, ¡pero 32 YA era tono del acorde! (una octava entera de error)
-```
+### Hallazgo 2 — Important — ✅ CERRADO — `reharmonize` rompía "el tono de acorde más cercano"
+La ventana de candidatos era fija, `range(-3, 4)`: con `chord_degrees=(0,2,4)` y
+`scale_size=7` solo cubría grados `[-21, 25]`, y fuera de ahí mentía —
+`27 → 25` (correcto 28), `-23 → -21` (correcto -24), y en el peor caso `32 → 25`
+**moviendo una octava entera un grado que ya era tono del acorde** (vía `realize`:
+MIDI 112 → 100, daño real y audible). El grado 32 lo produce algo tan común como
+`octave(m, 4, 7)`.
 
-El grado 32 sale de algo tan normal como `octave(m, 4, 7)` sobre un motivo con un paso
-acentuado en el grado 4. Verificado de punta a punta: vía `realize` produce **notas MIDI
-distintas y peores** que no rearmonizar. Fix: derivar la ventana del rango real de grados
-del motivo en vez de fijarla en ±3 octavas.
+**No se arregló como decía el informe.** El informe proponía "derivar la ventana del rango
+real de grados del motivo"; eso sigue siendo una ventana, solo que más grande, y hay que
+calcularla. En vez de eso se eliminó: por cada grado del acorde solo **dos** candidatos
+pueden ganar, los que enmarcan al grado, y salen de una división entera
+(`k = (degree - c) // scale_size`). Exacto para grados arbitrariamente lejanos y O(1) por
+paso en vez de O(ventana). Helper privado `_nearest_chord_tone`; la superficie pública no
+cambió.
 
-Ningún test lo detecta porque el invariante que sí testean (`best % scale_size` cae en
-`chord_degrees`) se cumple siempre por construcción, incluso con el bug.
+Verificación **independiente de los tests**, en un proceso aparte y contra fuerza bruta
+(la lección de T1: el mismo agente escribe test e implementación, y si comparten el error
+de concepto pasan igual): 16 227 casos (`scale_size` 5/6/7/12 × 8 formas de acorde,
+incluyendo duplicadas y desordenadas × grados −300..300) → **0 desacuerdos con el óptimo**;
+grados 10⁶ y 10¹² → distancia ≤ 3 y siempre en el acorde; 401 tonos de acorde → 0 se
+movieron; y los 47 grados de la ventana vieja `[-21, 25]` → **0 cambios de comportamiento**,
+o sea cero regresión en lo que ya funcionaba.
 
-### Hallazgo 3 — Minor (diferido, no bloquea) — `fold_to_range` pierde la clase de altura
+### Hallazgo 3 — Minor (diferido, sigue abierto, no bloquea) — `fold_to_range` pierde la clase de altura
 `bridge/motif.py:117-126`. Los contadores de guarda (16 y 32 iteraciones) se agotan para
 notas a más de 192 semitonos de `lo`, y entonces el `max(lo, min(hi, note))` final hace un
 clamp silencioso que rompe la promesa del docstring. **No cuelga y nunca devuelve fuera de
@@ -86,8 +94,10 @@ Consecuencias prácticas para la sesión que siga:
    agente desde el mismo brief: si comparten el error de concepto, pasan igual.
 2. **A los implementadores hay que decirles que paren y pregunten** si un valor esperado no
    les cuadra, en vez de forzar la implementación para que el test pase.
-3. Los conteos de tests del plan están mal (decía 15 en T1 → eran 20; 22 en T2 → eran 27).
-   Ignorá esos números y reportá el real.
+3. Los conteos del proceso están mal, van 3 de 3: el plan decía 15 tests en T1 → eran 20,
+   y 22 en T2 → eran 27; el informe del review de T2 contó "12 símbolos públicos" en
+   `motif.py` → son 13 (se le pasó `scale_time`). Ninguno fue sustantivo, pero no cites
+   esos números: contalos vos y reportá el real.
 
 ## Decisiones ya tomadas (no volver a preguntarlas)
 
@@ -114,15 +124,14 @@ Consecuencias prácticas para la sesión que siga:
 
 ```powershell
 cd "C:\Users\Administrador\Documents\Github Repositories\HacktonIAMusic\HacktonIAMusic-fase1\virusynth"
-.\.venv\Scripts\python -m unittest discover -s bridge\tests    # debe dar 134 OK
+.\.venv\Scripts\python -m unittest discover -s bridge\tests    # debe dar 143 OK
 ```
 
 1. Invocá `superpowers:subagent-driven-development`. El ledger en
    `.superpowers/sdd/2026-08-10-fase1-motor-musical/progress.md` manda sobre tu memoria.
-2. **Arrancá por el fix round 1/5 de T2** con los hallazgos 1 y 2 de arriba. El hallazgo 3
-   va al ledger como diferido, no al loop.
-3. Re-revisión acotada del diff del fix (`scripts/review-package PLAN BASE HEAD`).
-4. Recién entonces seguí con T3.
+2. **Arrancá por T3 (`style.py`)**: `task-brief` → implementador → `review-package` →
+   fix loop si hay hallazgos. T1 y T2 están cerradas; no las reabras.
+3. Después T4…T8 con el mismo ciclo.
 
 Los scripts del proceso están en
 `C:\Users\Administrador\.claude\plugins\cache\claude-plugins-official\superpowers\6.2.0\skills\subagent-driven-development\scripts\`
