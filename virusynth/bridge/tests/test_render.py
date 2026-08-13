@@ -305,6 +305,80 @@ class TestProgresionesCortas(unittest.TestCase):
         self.assertNotEqual(vistos[0], vistos[1])
 
 
+class TestPatronDeArtista(unittest.TestCase):
+    """El patron de un artista remoto reemplaza al leitmotiv en la voz lead.
+
+    Regresion real: al reescribir el secuenciador, jam.active_pattern quedo sin
+    lector. main.py seguia aceptando y cuantizando los patrones y la web seguia
+    teniendo el boton, pero no sonaban. Estos tests fijan que vuelvan a sonar.
+    """
+
+    def test_sin_patron_suena_el_leitmotiv(self):
+        bar = render.render_bar(make_ctx("drop"), 0)
+        self.assertTrue([e for e in bar.events if e.voice == "lead"])
+
+    def test_con_patron_manda_el_artista(self):
+        ctx = make_ctx("drop")
+        ctx.artist_pattern = [69, 72, 76]
+        bar = render.render_bar(ctx, 0)
+        leads = [e for e in bar.events if e.voice == "lead"]
+        self.assertTrue(leads)
+        # una nota por corchea = 8 en el compas
+        self.assertEqual(len(leads), 8)
+        self.assertEqual([e.step for e in leads],
+                         [0, 2, 4, 6, 8, 10, 12, 14])
+        # y las alturas son las del artista, cicladas
+        alturas = [e.notes[0] for e in leads]
+        self.assertEqual(alturas[:3], [69, 72, 76])
+        self.assertEqual(alturas[3], 69, "el patron deberia ciclar")
+
+    def test_el_patron_se_pliega_al_rango_de_la_voz(self):
+        # resolve_pattern cuantiza a la escala pero NO acota el registro.
+        ctx = make_ctx("drop")
+        patch = style.STYLES["determinacion"].voices["lead"]
+        ctx.artist_pattern = [12, 21, 120, 127]
+        bar = render.render_bar(ctx, 0)
+        for event in bar.events:
+            if event.voice != "lead":
+                continue
+            for note in event.notes:
+                self.assertGreaterEqual(note, patch.range_lo)
+                self.assertLessEqual(note, patch.range_hi)
+
+    def test_el_patron_no_toca_las_demas_voces(self):
+        ctx = make_ctx("drop")
+        sin = render.render_bar(make_ctx("drop"), 0)
+        ctx.artist_pattern = [69, 71]
+        con = render.render_bar(ctx, 0)
+
+        def sin_lead(bar):
+            return [e for e in bar.events if e.voice != "lead"]
+
+        self.assertEqual(sin_lead(sin), sin_lead(con),
+                         "el patron del artista solo debe cambiar el lead")
+
+    def test_un_patron_vacio_no_enmudece_el_lead(self):
+        # active_pattern arranca en None y puede llegar [] desde el JSON.
+        for vacio in (None, []):
+            ctx = make_ctx("drop")
+            ctx.artist_pattern = vacio
+            bar = render.render_bar(ctx, 0)
+            with self.subTest(vacio=vacio):
+                self.assertTrue([e for e in bar.events if e.voice == "lead"],
+                                "sin patron tiene que volver el leitmotiv")
+
+    def test_el_patron_acentua_cuando_vuelve_a_empezar(self):
+        ctx = make_ctx("drop")
+        ctx.artist_pattern = [69, 72]
+        bar = render.render_bar(ctx, 0)
+        leads = sorted((e for e in bar.events if e.voice == "lead"),
+                       key=lambda e: e.step)
+        # patron de 2 notas: acento en las corcheas pares (0, 4, 8, 12)
+        acentuados = [e.step for e in leads
+                      if e.velocity == render.VELOCITY_ACCENT]
+        self.assertEqual(acentuados, [0, 4, 8, 12])
+
+
 class TestCruceCompleto(unittest.TestCase):
     """Todo deck x toda seccion x toda escala del deck tiene que renderizar.
 

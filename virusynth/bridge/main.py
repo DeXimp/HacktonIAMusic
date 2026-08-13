@@ -77,7 +77,11 @@ class JamController:
                         or f"artist_{client['id']}")[:40]
         scale = self.state.jam.scale
         resolved, changes = music_engine.resolve_pattern(notes, scale)
-        # el patrón (ya cuantizado) entra al secuenciador: todos lo oyen ya
+        # el patrón (ya cuantizado) entra al secuenciador: todos lo oyen ya.
+        # Lo toca la voz `lead` en lugar del leitmotiv del estilo, con el
+        # acompañamiento del arreglo debajo (render._render_artist_pattern).
+        # Solo suena en las secciones que llevan lead: en intro/break/outro el
+        # arreglo deja la melodía callada a propósito.
         self.state.jam.active_pattern = resolved
         self.state.jam.pattern_author = artist_id
         # si hubo choques, queda pendiente para que la IA lo comente

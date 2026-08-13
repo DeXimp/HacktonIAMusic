@@ -136,6 +136,30 @@ class TestSequencer(unittest.TestCase):
             bar = self.seq.next_bar()
         self.assertEqual(bar.index, 69)
 
+    def test_el_patron_del_artista_llega_al_contexto_y_a_pd(self):
+        # El secuenciador viejo era el unico lector de jam.active_pattern. Si
+        # esto se rompe, la UI de artista vuelve a quedar muda.
+        self.state.jam.active_pattern = [69, 72, 76]
+        ctx = self.seq.build_context()
+        self.assertEqual(ctx.artist_pattern, [69, 72, 76])
+
+        self.seq.arranger.jump_to("drop")
+        bar = self.seq.next_bar()
+        for step in range(render.STEPS_PER_BAR):
+            self.seq.dispatch_step(bar, step)
+        self.assertTrue(self.pd.notes, "el patron del artista no llego a Pd")
+        enviadas = {n for n, _v in self.pd.notes}
+        self.assertTrue(enviadas <= {69, 72, 76},
+                        f"llegaron notas ajenas al patron: {enviadas}")
+
+    def test_sin_patron_el_secuenciador_manda_el_leitmotiv(self):
+        self.assertIsNone(self.state.jam.active_pattern)
+        self.seq.arranger.jump_to("drop")
+        bar = self.seq.next_bar()
+        for step in range(render.STEPS_PER_BAR):
+            self.seq.dispatch_step(bar, step)
+        self.assertTrue(self.pd.notes)
+
     def test_next_bar_sobrevive_a_un_deck_sin_progresion_para_la_seccion(self):
         # build_context cae a (("i",),) si la seccion no tiene pool.
         self.seq.deck = style.STYLES["determinacion"]

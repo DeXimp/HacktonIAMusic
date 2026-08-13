@@ -69,6 +69,10 @@ class RenderContext:
     motif: M.Motif
     is_last_bar: bool = False
     prev_voicing: list[int] = field(default_factory=list)
+    # Patron de un artista remoto, ya cuantizado a la escala por
+    # music_engine.resolve_pattern. Si viene, reemplaza al leitmotiv en la voz
+    # lead: el artista toca la melodia y el motor le pone el acompanamiento.
+    artist_pattern: list[int] | None = None
 
 
 def step_ms(bpm: int) -> float:
@@ -146,8 +150,42 @@ def _render_pad(ctx: RenderContext, roman: str) -> list[VoiceEvent]:
     return [VoiceEvent("pad", 0, tuple(voicing), VELOCITY_SOFT, STEPS_PER_BAR)]
 
 
+def _render_artist_pattern(ctx: RenderContext) -> list[VoiceEvent]:
+    """El patron de un artista remoto, en la voz lead.
+
+    Llega como una LISTA DE NOTAS sin ritmo: la UI de artista (web/js/
+    artist-ui.js) va encolando los toques del artista, no dibuja una rejilla con
+    silencios. Asi que el ritmo lo pone el motor -- una nota por corchea, que es
+    lo que hacia el secuenciador viejo -- y el artista pone las alturas.
+
+    Las notas vienen ya cuantizadas a la escala (music_engine.resolve_pattern),
+    pero NO acotadas al registro: hay que plegarlas al rango de la voz o se
+    saldrian del patch.
+    """
+    patch = ctx.deck.voices["lead"]
+    pattern = [int(n) for n in (ctx.artist_pattern or ())]
+    if not pattern:
+        return []
+
+    events = []
+    for i, step in enumerate(range(0, STEPS_PER_BAR, 2)):
+        note = M.fold_to_range(pattern[i % len(pattern)],
+                               patch.range_lo, patch.range_hi)
+        acento = i % len(pattern) == 0      # el patron vuelve a empezar
+        events.append(VoiceEvent(
+            "lead", step, (note,),
+            VELOCITY_ACCENT if acento else VELOCITY_NORMAL, 2))
+    return events
+
+
 def _render_lead(ctx: RenderContext, roman: str) -> list[VoiceEvent]:
-    """El motivo, rearmonizado al acorde del compas. Esto es el leitmotiv."""
+    """El motivo, rearmonizado al acorde del compas. Esto es el leitmotiv.
+
+    Si hay un patron de artista, manda el artista: ver _render_artist_pattern.
+    """
+    if ctx.artist_pattern:
+        return _render_artist_pattern(ctx)
+
     patch = ctx.deck.voices["lead"]
     degrees = harmony.chord_degrees(ctx.scale, roman)
     shaped = M.reharmonize(ctx.motif, degrees, _scale_size(ctx.scale))

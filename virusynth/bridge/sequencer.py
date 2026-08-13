@@ -54,7 +54,8 @@ class Sequencer:
             scale=jam.scale, root=jam.root_note, bpm=jam.bpm, deck=self.deck,
             section=section, bar_in_section=self.arranger.bar_in_section,
             progression=progression, motif=self._motif,
-            is_last_bar=self.arranger.is_last_bar())
+            is_last_bar=self.arranger.is_last_bar(),
+            artist_pattern=jam.active_pattern)
         ctx.prev_voicing = self._prev_voicing
         return ctx
 
