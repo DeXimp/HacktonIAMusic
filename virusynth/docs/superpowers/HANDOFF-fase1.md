@@ -1,7 +1,31 @@
-# Traspaso — Fase 1 del motor musical (interrumpida 2026-08-10, retomada 2026-08-12)
+# Traspaso — Fase 1 del motor musical (COMPLETA 2026-08-13)
 
 > Este archivo existe para que una sesión nueva retome exactamente donde se paró,
 > sin volver a deducir nada. Leelo entero antes de tocar código.
+
+## ⛔ LO ÚNICO QUE FALTA: escuchar `jam.mid`
+
+Las 8 tareas están implementadas, revisadas y committeadas, y la suite está en
+**266 tests verdes** (baseline 81). Pero el criterio de aceptación de la Fase 1
+que fijó el equipo no son los tests: es **escuchar**. Eso no lo puede hacer un
+agente.
+
+```powershell
+cd "C:\Users\Administrador\Documents\Github Repositories\HacktonIAMusic\HacktonIAMusic-fase1\virusynth"
+.\.venv\Scripts\python scripts\render-jam.py --bars 32 --out jam.mid
+start jam.mid
+```
+
+Tiene que oírse: un **bajo con ostinato**, **acordes en contratiempo**, **batería
+que se densifica** hacia el build, y una **melodía que vuelve transformada**. Si
+suena a arpegio plano, hay un bug en el renderizador: arreglarlo y **regenerar la
+partitura dorada** (`python -m bridge.tests.test_golden_score --update`).
+
+Las cuatro cosas se verificaron midiéndolas sobre los datos (están en el ledger,
+sección Task 7) y todas están presentes. Lo que falta es el juicio de oído.
+
+Después de escuchar, cerrar la rama: `feature/motor-musical-fase1` va 9 commits
+por delante de `main` y **sin pushear**.
 
 ## Dónde está todo
 
@@ -18,29 +42,40 @@
 El worktree se creó con `git worktree add` como directorio **hermano** del repo (no dentro
 de `.claude/`, que no está en `.gitignore` y se acabaría commiteando). Sigue en disco.
 
-## Estado: 2 de 8 tareas
+## Estado: 8 de 8 tareas
 
 | Tarea | Estado | Commits |
 |---|---|---|
 | T1 · `harmony.py` | ✅ **completa, revisión limpia** | `8c8495c` → `783c019` → `0a961d1` |
 | T2 · `motif.py` | ✅ **completa, hallazgos cerrados** | `1659bf7` → `b416bb6` |
-| T3 · `style.py` | pendiente | — |
-| T4 · `arrangement.py` | pendiente | — |
-| T5 · `render.py` | pendiente | — |
-| T6 · `sequencer.py` | pendiente | — |
-| T7 · `midi.py` + `render-jam.py` | pendiente | — |
-| T8 · test dorado | pendiente | — |
+| T3 · `style.py` | ✅ completa | `883de9f` |
+| T4 · `arrangement.py` | ✅ completa | `901f84e` |
+| T5 · `render.py` | ✅ completa (1 defecto **crítico** del plan) | `49fca13` |
+| T6 · `sequencer.py` | ✅ completa (+ regresión cerrada) | `c0cd4f8` → `27c344b` |
+| T7 · `midi.py` + `render-jam.py` | ✅ código completo, **falta escuchar** | `1a28511` |
+| T8 · test dorado | ✅ completa | `6a21b81` |
 
-Tests: baseline 81 → **143 en verde** ahora mismo. Nada roto.
+Tests: baseline 81 → **266 en verde**. Nada roto. El plan estimaba 99 tests nuevos;
+los reales son 185, porque a cada tarea se le agregaron los que le faltaban.
 
-## ⛔ Punto exacto de reanudación
+### Los dos hallazgos que más importan de esta tanda
 
-**El siguiente paso es T3 (`style.py`), arrancando por su `task-brief`.** Quedan 6 tareas:
-T3 a T8.
+**T5 · CRÍTICO · el bajo tocaba notas que no estaban en el acorde.** La fórmula del
+plan era `patch.range_lo + pcs[0]`, y `pcs[0]` es una clase de altura absoluta
+(0=Do): sumarla a `range_lo` solo cae bien si `range_lo` es un Do. El bajo de
+determinacion arranca en 33, que es un **La**, así que sobre la tónica A-C-E el bajo
+tocaba **C#2 y F#2**, ninguna de las dos en el acorde. Los 8 acordes de los dos decks
+menores mal; `arcade` se salvaba de casualidad porque su `range_lo` es 36, un Do.
+Ningún test lo veía: el del plan solo comprobaba que la nota cayera dentro de 33-57,
+y 42 cae. Fix: `_lowest_with_pc`, que mide el intervalo desde `range_lo` y no desde
+Do. Ahora hay tres tests que exigen que el bajo toque el acorde.
 
-T2 se cerró el 2026-08-12 (commit `b416bb6`, 9 tests nuevos, suite 134 → 143). Los dos
-hallazgos Important se reprodujeron en vivo antes de tocar nada y quedaron arreglados; el
-Minor sigue diferido y **no** bloquea. Detalle abajo, para que nadie los vuelva a abrir.
+**T6 · regresión propia · los patrones de artistas remotos dejaron de sonar.** El
+secuenciador viejo era el **único** lector de `jam.active_pattern`. Al reescribirlo
+quedó huérfano: `main.py` seguía aceptándolos y recuantizándolos y la web seguía
+teniendo su botón, pero no sonaba nada. Cerrado el mismo día por
+`RenderContext.artist_pattern` (ruling de Bruce), así que además entra al MIDI
+exportado. **No suena en intro/break/outro**, porque esas secciones no llevan lead.
 
 ### Hallazgo 1 — Important — ✅ CERRADO — `diminish(m, f=0)` lanzaba `ZeroDivisionError`
 `bridge/motif.py`. Guarda `f <= 0 → devolver el motivo intacto`, calcada de la que
@@ -124,29 +159,28 @@ Consecuencias prácticas para la sesión que siga:
 
 ```powershell
 cd "C:\Users\Administrador\Documents\Github Repositories\HacktonIAMusic\HacktonIAMusic-fase1\virusynth"
-.\.venv\Scripts\python -m unittest discover -s bridge\tests    # debe dar 143 OK
+.\.venv\Scripts\python -m unittest discover -s bridge\tests    # debe dar 266 OK
 ```
 
-1. Invocá `superpowers:subagent-driven-development`. El ledger en
+1. **Escuchar `jam.mid`** (arriba). Es lo único pendiente.
+2. Cerrar la rama con `superpowers:finishing-a-development-branch`.
+3. Después, la Fase 2. El ledger
    `.superpowers/sdd/2026-08-10-fase1-motor-musical/progress.md` manda sobre tu memoria.
-2. **Arrancá por T3 (`style.py`)**: `task-brief` → implementador → `review-package` →
-   fix loop si hay hallazgos. T1 y T2 están cerradas; no las reabras.
-3. Después T4…T8 con el mismo ciclo.
 
-Los scripts del proceso están en
-`C:\Users\Administrador\.claude\plugins\cache\claude-plugins-official\superpowers\6.2.0\skills\subagent-driven-development\scripts\`
-(`task-brief`, `review-package`, `sdd-workspace`).
+**Sobre el proceso:** T1 y T2 se hicieron con `superpowers:subagent-driven-development`
+(implementadores en `haiku`, revisores en `sonnet` — los revisores encontraron todos los
+defectos reales). T3 a T8 se hicieron **inline, sin subagentes**, por instrucción de
+sesión de Bruce de no despachar agentes. Lo que hizo el trabajo en las dos modalidades no
+fue el subagente sino la **verificación independiente**: recalcular la aritmética musical
+en un proceso aparte, contra fuerza bruta o contra un modelo de referencia escrito por
+separado, en vez de confiar en que los tests pasen. Los tests los escribe el mismo que
+implementa; si comparten el error de concepto, pasan igual. Así salieron el crítico del
+bajo en T5, la deriva del reloj en T6 y los dos Important de T2.
 
-**Modelos que funcionaron:** `haiku` para implementadores (el brief trae el código
-completo, es transcripción + tests), `sonnet` para revisores. Los revisores en sonnet
-encontraron todos los defectos reales; no bajes de ahí.
-
-## El hito que importa
-
-La Tarea 7 tiene un paso que no es opcional: renderizar 32 compases a `jam.mid` y
-**escucharlo**. Si suena a arpegio plano en vez de a música con bajo, contratiempos y una
-melodía que vuelve transformada, el renderizador tiene un bug y no hay que seguir hasta
-arreglarlo. Ese es el criterio de éxito real de la Fase 1, no que los tests estén verdes.
+**Y probar los tests en las dos direcciones.** Cada fix se validó rompiéndolo a mano para
+confirmar que el test nuevo lo caza: el bajo (falla con el repro exacto), el reloj (528 ms
+de deriva en 12 compases), el test dorado (un punto de velocity), la tónica de arcade.
+Un test que no se vio fallar no prueba nada.
 
 ## Después de la Fase 1
 
