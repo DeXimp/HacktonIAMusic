@@ -4,3 +4,5 @@ __pycache__/
 .env
 *.pio/
 firmware/.pio/
+# salida de scripts/render-jam.py: se regenera cuando se quiera escuchar
+*.mid
