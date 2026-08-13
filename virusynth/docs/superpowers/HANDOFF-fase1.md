@@ -24,8 +24,8 @@ partitura dorada** (`python -m bridge.tests.test_golden_score --update`).
 Las cuatro cosas se verificaron midiéndolas sobre los datos (están en el ledger,
 sección Task 7) y todas están presentes. Lo que falta es el juicio de oído.
 
-Después de escuchar, cerrar la rama: `feature/motor-musical-fase1` va 9 commits
-por delante de `main` y **sin pushear**.
+Después de escuchar, cerrar la rama: `feature/motor-musical-fase1` va 8 commits
+por delante de `main` y **sin pushear** (los de T1 y T2 ya están en `main`).
 
 ## Dónde está todo
 
