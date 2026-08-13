@@ -30,7 +30,7 @@ Reparto de responsabilidades (innegociable):
 
 | Componente | Hace | NO hace |
 |---|---|---|
-| Bridge Python | Cerebro: secuenciador, escalas, cuantización, votos, estado, IA | Sintetizar audio |
+| Bridge Python | Cerebro: **arreglo** (estilo, armonía, motivo, secciones), secuenciador, escalas, cuantización, votos, estado, IA | Sintetizar audio |
 | Pure Data | Synth + FX + telemetría de amplitud | Lógica musical, red externa, serial |
 | Capa realtime (Portal/WS) | Transporte de mensajes `jam:*` | Decidir nada |
 | LLM | Sugerir mutaciones (JSON validado) | Generar audio, tocar notas directamente |
